@@ -1,0 +1,5 @@
+// Type generation only. Not a deployment configuration; no hosted resources.
+{
+  "name": "pixel-brightness-types-only",
+  "compatibility_date": "2026-09-06"
+}

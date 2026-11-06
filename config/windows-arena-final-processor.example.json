@@ -1,0 +1,229 @@
+{
+  "schemaVersion": 1,
+  "revision": 1,
+  "nodeId": "node01",
+  "name": "Windows Arena final processor · Node 01",
+  "serverUrl": "http://127.0.0.1:4100",
+  "dataDir": "C:\\ProgramData\\PixelBrightness\\node",
+  "heartbeatMs": 1000,
+  "clockSyncMs": 30000,
+  "clockSyncRounds": 12,
+  "pollWaitMs": 20000,
+  "canvas": {
+    "width": 5280,
+    "height": 1080,
+    "frameRateNum": 60,
+    "frameRateDen": 1
+  },
+  "compositionSource": {
+    "type": "spout",
+    "senderName": "PB-COMPOSITION",
+    "width": 5280,
+    "height": 1080,
+    "frameRateNum": 60,
+    "frameRateDen": 1,
+    "acceptedFormats": [
+      "DXGI_FORMAT_R16G16B16A16_FLOAT",
+      "DXGI_FORMAT_R8G8B8A8_UNORM",
+      "DXGI_FORMAT_B8G8R8A8_UNORM"
+    ],
+    "colorEncoding": "srgb",
+    "alphaMode": "ignore",
+    "timeoutMs": 500,
+    "startupGraceMs": 10000,
+    "onMissing": "black",
+    "onMismatch": "black",
+    "allowAutoSelect": false
+  },
+  "outputs": [
+    {
+      "id": "A",
+      "name": "Projector A",
+      "connector": "\\\\?\\DISPLAY#PBPROJECTOR#A#{4d36e96e-e325-11ce-bfc1-08002be10318}",
+      "enabled": true,
+      "display": {
+        "devicePath": "\\\\?\\DISPLAY#PBPROJECTOR#A#{4d36e96e-e325-11ce-bfc1-08002be10318}",
+        "gdiName": "\\\\.\\DISPLAY2"
+      },
+      "resolution": {
+        "width": 1920,
+        "height": 1080,
+        "refreshNum": 60,
+        "refreshDen": 1
+      },
+      "sourceViewport": {
+        "x": 0,
+        "y": 0,
+        "width": 1920,
+        "height": 1080
+      },
+      "overlap": {
+        "left": 0,
+        "right": 240,
+        "top": 0,
+        "bottom": 0
+      },
+      "warp": {
+        "enabled": false,
+        "columns": 2,
+        "rows": 2,
+        "interpolation": "bicubic",
+        "points": [
+          { "u": 0, "v": 0, "x": 0, "y": 0 },
+          { "u": 0.5, "v": 0, "x": 0.5, "y": 0 },
+          { "u": 1, "v": 0, "x": 1, "y": 0 },
+          { "u": 0, "v": 0.5, "x": 0, "y": 0.5 },
+          { "u": 0.5, "v": 0.5, "x": 0.5, "y": 0.5 },
+          { "u": 1, "v": 0.5, "x": 1, "y": 0.5 },
+          { "u": 0, "v": 1, "x": 0, "y": 1 },
+          { "u": 0.5, "v": 1, "x": 0.5, "y": 1 },
+          { "u": 1, "v": 1, "x": 1, "y": 1 }
+        ]
+      },
+      "blend": {
+        "enabled": true,
+        "feather": 0.78,
+        "gamma": 2.2
+      },
+      "blackUniformity": {
+        "enabled": false,
+        "lift": 0
+      },
+      "mask": {
+        "enabled": false
+      },
+      "color": {
+        "gain": [1, 1, 1],
+        "offset": [0, 0, 0],
+        "gamma": [1, 1, 1],
+        "lut": null
+      }
+    },
+    {
+      "id": "B",
+      "name": "Projector B",
+      "connector": "\\\\?\\DISPLAY#PBPROJECTOR#B#{4d36e96e-e325-11ce-bfc1-08002be10318}",
+      "enabled": true,
+      "display": {
+        "devicePath": "\\\\?\\DISPLAY#PBPROJECTOR#B#{4d36e96e-e325-11ce-bfc1-08002be10318}",
+        "gdiName": "\\\\.\\DISPLAY3"
+      },
+      "resolution": {
+        "width": 1920,
+        "height": 1080,
+        "refreshNum": 60,
+        "refreshDen": 1
+      },
+      "sourceViewport": {
+        "x": 1680,
+        "y": 0,
+        "width": 1920,
+        "height": 1080
+      },
+      "overlap": {
+        "left": 240,
+        "right": 240,
+        "top": 0,
+        "bottom": 0
+      },
+      "warp": {
+        "enabled": false,
+        "columns": 2,
+        "rows": 2,
+        "interpolation": "bicubic",
+        "points": [
+          { "u": 0, "v": 0, "x": 0, "y": 0 },
+          { "u": 0.5, "v": 0, "x": 0.5, "y": 0 },
+          { "u": 1, "v": 0, "x": 1, "y": 0 },
+          { "u": 0, "v": 0.5, "x": 0, "y": 0.5 },
+          { "u": 0.5, "v": 0.5, "x": 0.5, "y": 0.5 },
+          { "u": 1, "v": 0.5, "x": 1, "y": 0.5 },
+          { "u": 0, "v": 1, "x": 0, "y": 1 },
+          { "u": 0.5, "v": 1, "x": 0.5, "y": 1 },
+          { "u": 1, "v": 1, "x": 1, "y": 1 }
+        ]
+      },
+      "blend": {
+        "enabled": true,
+        "feather": 0.78,
+        "gamma": 2.2
+      },
+      "blackUniformity": {
+        "enabled": false,
+        "lift": 0
+      },
+      "mask": {
+        "enabled": false
+      },
+      "color": {
+        "gain": [1, 1, 1],
+        "offset": [0, 0, 0],
+        "gamma": [1, 1, 1],
+        "lut": null
+      }
+    },
+    {
+      "id": "C",
+      "name": "Projector C",
+      "connector": "\\\\?\\DISPLAY#PBPROJECTOR#C#{4d36e96e-e325-11ce-bfc1-08002be10318}",
+      "enabled": true,
+      "display": {
+        "devicePath": "\\\\?\\DISPLAY#PBPROJECTOR#C#{4d36e96e-e325-11ce-bfc1-08002be10318}",
+        "gdiName": "\\\\.\\DISPLAY4"
+      },
+      "resolution": {
+        "width": 1920,
+        "height": 1080,
+        "refreshNum": 60,
+        "refreshDen": 1
+      },
+      "sourceViewport": {
+        "x": 3360,
+        "y": 0,
+        "width": 1920,
+        "height": 1080
+      },
+      "overlap": {
+        "left": 240,
+        "right": 0,
+        "top": 0,
+        "bottom": 0
+      },
+      "warp": {
+        "enabled": false,
+        "columns": 2,
+        "rows": 2,
+        "interpolation": "bicubic",
+        "points": [
+          { "u": 0, "v": 0, "x": 0, "y": 0 },
+          { "u": 0.5, "v": 0, "x": 0.5, "y": 0 },
+          { "u": 1, "v": 0, "x": 1, "y": 0 },
+          { "u": 0, "v": 0.5, "x": 0, "y": 0.5 },
+          { "u": 0.5, "v": 0.5, "x": 0.5, "y": 0.5 },
+          { "u": 1, "v": 0.5, "x": 1, "y": 0.5 },
+          { "u": 0, "v": 1, "x": 0, "y": 1 },
+          { "u": 0.5, "v": 1, "x": 0.5, "y": 1 },
+          { "u": 1, "v": 1, "x": 1, "y": 1 }
+        ]
+      },
+      "blend": {
+        "enabled": true,
+        "feather": 0.78,
+        "gamma": 2.2
+      },
+      "blackUniformity": {
+        "enabled": false,
+        "lift": 0
+      },
+      "mask": {
+        "enabled": false
+      },
+      "color": {
+        "gain": [1, 1, 1],
+        "offset": [0, 0, 0],
+        "gamma": [1, 1, 1],
+        "lut": null
+      }
+    }
+  ]
+}

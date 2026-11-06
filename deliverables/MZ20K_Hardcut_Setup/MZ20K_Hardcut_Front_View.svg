@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1050" height="780" viewBox="0 0 1050 780">
+<defs><style>text{font-family:Arial,'Noto Sans Thai',sans-serif;fill:#ecf1f7}.title{font-size:25px;font-weight:700}.h{font-size:17px;font-weight:700}.t{font-size:14px}.dim{font-size:13px;fill:#acb8c8}.bay{fill:#b9a27f;stroke:#e4d4b9;stroke-width:2}.l{fill:#168cff;fill-opacity:.47}.r{fill:#ff542e;fill-opacity:.47}.cut{stroke:#ffe84a;stroke-width:5;stroke-dasharray:10 7}</style></defs>
+<rect width="1050" height="780" fill="#10151d"/><text x="55" y="45" class="title">MZ20K PORTRAIT — FRONT VIEW / ACTIVE IMAGE ZONES</text>
+<rect x="90" y="100.39999999999998" width="144.1" height="589.6" rx="14" class="bay" opacity="0.82"/><rect x="234.1" y="100.39999999999998" width="110" height="589.6" rx="28" class="bay" opacity="0.7849999999999999"/><rect x="344.1" y="100.39999999999998" width="110" height="589.6" rx="14" class="bay" opacity="0.75"/><rect x="454.1" y="100.39999999999998" width="93.50000000000001" height="589.6" rx="28" class="bay" opacity="0.715"/><rect x="547.6" y="100.39999999999998" width="156.74999999999997" height="589.6" rx="14" class="bay" opacity="0.6799999999999999"/><rect x="704.35" y="100.39999999999998" width="107.24999999999996" height="589.6" rx="28" class="bay" opacity="0.6449999999999999"/><rect x="811.5999999999999" y="100.39999999999998" width="70.40000000000006" height="589.6" rx="14" class="bay" opacity="0.6099999999999999"/>
+<rect x="90" y="100.39999999999998" width="364.1" height="589.6" class="l"/><rect x="454.1" y="100.39999999999998" width="427.90000000000003" height="589.6" class="r"/>
+<line x1="454.1" y1="85.39999999999998" x2="454.1" y2="705" class="cut"/><text x="466.1" y="128.39999999999998" class="h">Hard Cut follows wall groove</text>
+<text x="217.05" y="395.2" class="h">PJ-L ACTIVE</text><text x="608.05" y="395.2" class="h">PJ-R ACTIVE</text>
+<line x1="65" y1="100.39999999999998" x2="65" y2="690" stroke="#aeb9c7"/><line x1="55" y1="100.39999999999998" x2="75" y2="100.39999999999998" stroke="#aeb9c7"/><line x1="55" y1="690" x2="75" y2="690" stroke="#aeb9c7"/><text x="30" y="395.2" class="dim" transform="rotate(-90 30 395.2)">13.40 m</text>
+<line x1="90" y1="725" x2="882" y2="725" stroke="#aeb9c7"/><text x="441" y="750" class="dim">14.40 m</text>
+<text x="102" y="674" class="t">0.00</text><text x="462.1" y="674" class="t">Grid 16 / 6.62</text><text x="840" y="674" class="t">14.40</text>
+</svg>

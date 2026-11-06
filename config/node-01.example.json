@@ -1,0 +1,40 @@
+{
+  "nodeId": "render-01",
+  "name": "North wall · Mini PC 01",
+  "serverUrl": "http://192.168.50.10:4100",
+  "dataDir": "/var/lib/pixel-brightness/node",
+  "heartbeatMs": 1000,
+  "clockSyncMs": 30000,
+  "clockSyncRounds": 12,
+  "pollWaitMs": 20000,
+  "outputs": [
+    {
+      "id": "A",
+      "name": "North A",
+      "connector": "DP-1",
+      "enabled": true,
+      "resolution": { "width": 1920, "height": 1080, "refreshNum": 60, "refreshDen": 1 }
+    },
+    {
+      "id": "B",
+      "name": "North B",
+      "connector": "DP-2",
+      "enabled": true,
+      "resolution": { "width": 1920, "height": 1080, "refreshNum": 60, "refreshDen": 1 }
+    },
+    {
+      "id": "C",
+      "name": "North C",
+      "connector": "DP-3",
+      "enabled": true,
+      "resolution": { "width": 1920, "height": 1080, "refreshNum": 60, "refreshDen": 1 }
+    },
+    {
+      "id": "D",
+      "name": "East D",
+      "connector": "HDMI-1",
+      "enabled": false,
+      "resolution": { "width": 1920, "height": 1080, "refreshNum": 60, "refreshDen": 1 }
+    }
+  ]
+}

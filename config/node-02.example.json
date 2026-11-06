@@ -1,0 +1,26 @@
+{
+  "nodeId": "render-02",
+  "name": "East wall · Mini PC 02",
+  "serverUrl": "http://192.168.50.10:4100",
+  "dataDir": "/var/lib/pixel-brightness/node",
+  "heartbeatMs": 1000,
+  "clockSyncMs": 30000,
+  "clockSyncRounds": 12,
+  "pollWaitMs": 20000,
+  "outputs": [
+    {
+      "id": "E",
+      "name": "East E",
+      "connector": "DP-1",
+      "enabled": true,
+      "resolution": { "width": 1920, "height": 1080, "refreshNum": 60, "refreshDen": 1 }
+    },
+    {
+      "id": "F",
+      "name": "East F",
+      "connector": "DP-2",
+      "enabled": true,
+      "resolution": { "width": 1920, "height": 1080, "refreshNum": 60, "refreshDen": 1 }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+[Unit]
+Description=Pixel Brightness V2 Control Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pixelserver
+Group=pixelserver
+WorkingDirectory=/opt/pixel-brightness/current
+EnvironmentFile=-/etc/pixel-brightness/server.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /opt/pixel-brightness/current/runtime/server/index.mjs
+Restart=always
+RestartSec=2
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/pixel-brightness/server
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

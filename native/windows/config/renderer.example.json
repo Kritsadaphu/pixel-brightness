@@ -1,0 +1,80 @@
+{
+  "$schema": "./renderer.schema.json",
+  "schemaVersion": 1,
+  "revision": 1,
+  "nodeId": "node01",
+  "adapterLuid": null,
+  "pipeName": "\\\\.\\pipe\\pixel-brightness-renderer-node01",
+  "vsync": true,
+  "topmost": true,
+  "telemetry": {
+    "path": "C:\\ProgramData\\PixelBrightness\\renderer-status.json",
+    "intervalMs": 1000
+  },
+  "canvas": { "width": 5280, "height": 1080, "frameRateNum": 60, "frameRateDen": 1 },
+  "compositionSource": {
+    "type": "spout",
+    "senderName": "PB-COMPOSITION",
+    "width": 5280,
+    "height": 1080,
+    "frameRateNum": 60,
+    "frameRateDen": 1,
+    "acceptedFormats": [
+      "DXGI_FORMAT_R16G16B16A16_FLOAT",
+      "DXGI_FORMAT_R8G8B8A8_UNORM",
+      "DXGI_FORMAT_B8G8R8A8_UNORM"
+    ],
+    "colorEncoding": "srgb",
+    "alphaMode": "ignore",
+    "timeoutMs": 1000,
+    "startupGraceMs": 10000,
+    "onMissing": "black",
+    "onMismatch": "black",
+    "allowAutoSelect": false
+  },
+  "outputs": [
+    {
+      "id": "A",
+      "enabled": true,
+      "display": {
+        "devicePath": "\\\\?\\DISPLAY#replace-with-list-displays-value",
+        "gdiName": "\\\\.\\DISPLAY2",
+        "adapterLuid": null,
+        "targetId": null
+      },
+      "resolution": { "width": 1920, "height": 1080, "refreshNum": 60, "refreshDen": 1 },
+      "sourceViewport": { "x": 0, "y": 0, "width": 1920, "height": 1080 },
+      "processing": {
+        "bypass": false,
+        "order": ["sourceViewport", "warp", "blend", "blackUniformity", "color", "mask"]
+      },
+      "overlap": { "left": 0, "right": 240, "top": 0, "bottom": 0 },
+      "blend": { "enabled": true, "feather": 0.78, "gamma": 2.2, "map": null },
+      "blackUniformity": { "enabled": false, "lift": 0.0, "map": null },
+      "color": {
+        "gain": [1.0, 1.0, 1.0],
+        "offset": [0.0, 0.0, 0.0],
+        "gamma": [1.0, 1.0, 1.0],
+        "lut": null
+      },
+      "mask": { "enabled": false, "map": null, "path": null, "softness": 0.0 },
+      "warp": {
+        "enabled": true,
+        "columns": 2,
+        "rows": 2,
+        "interpolation": "bicubic",
+        "points": [
+          { "u": 0.0, "v": 0.0, "x": 0.0, "y": 0.0 },
+          { "u": 0.5, "v": 0.0, "x": 0.5, "y": 0.0 },
+          { "u": 1.0, "v": 0.0, "x": 1.0, "y": 0.0 },
+          { "u": 0.0, "v": 0.5, "x": 0.0, "y": 0.5 },
+          { "u": 0.5, "v": 0.5, "x": 0.5, "y": 0.5 },
+          { "u": 1.0, "v": 0.5, "x": 1.0, "y": 0.5 },
+          { "u": 0.0, "v": 1.0, "x": 0.0, "y": 1.0 },
+          { "u": 0.5, "v": 1.0, "x": 0.5, "y": 1.0 },
+          { "u": 1.0, "v": 1.0, "x": 1.0, "y": 1.0 }
+        ]
+      }
+    }
+  ]
+}

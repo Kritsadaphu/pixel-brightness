@@ -1,0 +1,316 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pixel-brightness.local/schemas/windows-renderer-v1.json",
+  "title": "Pixel Brightness Windows renderer configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "revision", "nodeId", "canvas", "compositionSource", "outputs"],
+  "properties": {
+    "$schema": { "type": "string", "minLength": 1, "maxLength": 1024 },
+    "schemaVersion": { "const": 1 },
+    "revision": { "type": "integer", "minimum": 1, "maximum": 9223372036854775807 },
+    "nodeId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9._-]+$" },
+    "adapterLuid": { "$ref": "#/$defs/luidOrNull" },
+    "pipeName": { "type": "string", "minLength": 10, "maxLength": 256,
+                  "pattern": "^\\\\\\\\\\.\\\\pipe\\\\" },
+    "vsync": { "type": "boolean", "default": true },
+    "topmost": { "type": "boolean", "default": true },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": ["string", "null"], "minLength": 1, "maxLength": 1024 },
+        "intervalMs": { "type": "integer", "minimum": 100, "maximum": 60000 }
+      }
+    },
+    "canvas": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height", "frameRateNum", "frameRateDen"],
+      "properties": {
+        "width": { "type": "integer", "minimum": 64, "maximum": 16384 },
+        "height": { "type": "integer", "minimum": 64, "maximum": 16384 },
+        "frameRateNum": { "type": "integer", "minimum": 1, "maximum": 240000 },
+        "frameRateDen": { "type": "integer", "minimum": 1, "maximum": 100000 }
+      }
+    },
+    "compositionSource": { "$ref": "#/$defs/compositionSource" },
+    "outputs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "contains": {
+        "type": "object",
+        "required": ["enabled"],
+        "properties": { "enabled": { "const": true } }
+      },
+      "items": { "$ref": "#/$defs/output" }
+    }
+  },
+  "$defs": {
+    "luidOrNull": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^[0-9A-Fa-f]{8}:[0-9A-Fa-f]{8}$" }
+      ]
+    },
+    "scalarAsset2d": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "width", "height", "format"],
+          "properties": {
+            "path": { "type": "string", "minLength": 1, "maxLength": 1024 },
+            "width": { "type": "integer", "minimum": 1, "maximum": 16384 },
+            "height": { "type": "integer", "minimum": 1, "maximum": 16384 },
+            "format": { "const": "r32_float" }
+          }
+        }
+      ]
+    },
+    "blackAsset2d": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "width", "height", "format"],
+          "properties": {
+            "path": { "type": "string", "minLength": 1, "maxLength": 1024 },
+            "width": { "type": "integer", "minimum": 1, "maximum": 16384 },
+            "height": { "type": "integer", "minimum": 1, "maximum": 16384 },
+            "format": { "enum": ["r32_float", "rgba32_float"] }
+          }
+        }
+      ]
+    },
+    "lut3d": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "size", "format"],
+          "properties": {
+            "path": { "type": "string", "minLength": 1, "maxLength": 1024 },
+            "size": { "type": "integer", "minimum": 2, "maximum": 128 },
+            "format": { "const": "rgba32_float" }
+          }
+        }
+      ]
+    },
+    "compositionSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "senderName", "width", "height", "frameRateNum", "frameRateDen", "acceptedFormats", "colorEncoding", "alphaMode", "onMissing", "onMismatch", "allowAutoSelect"],
+      "properties": {
+        "type": { "const": "spout" },
+        "senderName": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "width": { "type": "integer", "minimum": 1, "maximum": 16384 },
+        "height": { "type": "integer", "minimum": 1, "maximum": 16384 },
+        "frameRateNum": { "type": "integer", "minimum": 1, "maximum": 240000 },
+        "frameRateDen": { "type": "integer", "minimum": 1, "maximum": 100000 },
+        "acceptedFormats": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {
+            "enum": [
+              "DXGI_FORMAT_R16G16B16A16_FLOAT",
+              "DXGI_FORMAT_R8G8B8A8_UNORM",
+              "DXGI_FORMAT_B8G8R8A8_UNORM"
+            ]
+          }
+        },
+        "colorEncoding": { "enum": ["srgb", "linear"] },
+        "alphaMode": { "const": "ignore" },
+        "timeoutMs": { "type": "integer", "minimum": 100, "maximum": 60000 },
+        "startupGraceMs": { "type": "integer", "minimum": 0, "maximum": 300000 },
+        "onMissing": { "const": "black" },
+        "onMismatch": { "const": "black" },
+        "allowAutoSelect": { "const": false }
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "enabled", "display", "resolution", "sourceViewport"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9._-]+$" },
+        "enabled": { "type": "boolean" },
+        "display": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "devicePath": { "type": ["string", "null"], "maxLength": 1024,
+                            "pattern": "^\\\\\\\\\\?\\\\DISPLAY#" },
+            "gdiName": { "type": ["string", "null"], "maxLength": 32,
+                         "pattern": "^\\\\\\\\\\.\\\\DISPLAY[1-9][0-9]{0,3}$" },
+            "adapterLuid": { "$ref": "#/$defs/luidOrNull" },
+            "targetId": { "type": ["integer", "null"], "minimum": 0, "maximum": 4294967295 }
+          },
+          "anyOf": [
+            { "required": ["devicePath"], "properties": { "devicePath": { "type": "string" } } },
+            { "required": ["gdiName"], "properties": { "gdiName": { "type": "string" } } },
+            { "required": ["adapterLuid", "targetId"],
+              "properties": { "adapterLuid": { "type": "string" }, "targetId": { "type": "integer" } } }
+          ],
+          "allOf": [
+            {
+              "if": { "required": ["adapterLuid"], "properties": { "adapterLuid": { "type": "string" } } },
+              "then": { "required": ["targetId"], "properties": { "targetId": { "type": "integer" } } }
+            },
+            {
+              "if": { "required": ["targetId"], "properties": { "targetId": { "type": "integer" } } },
+              "then": { "required": ["adapterLuid"], "properties": { "adapterLuid": { "type": "string" } } }
+            }
+          ]
+        },
+        "resolution": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["width", "height", "refreshNum", "refreshDen"],
+          "properties": {
+            "width": { "type": "integer", "minimum": 64, "maximum": 16384 },
+            "height": { "type": "integer", "minimum": 64, "maximum": 16384 },
+            "refreshNum": { "type": "integer", "minimum": 1, "maximum": 240000 },
+            "refreshDen": { "type": "integer", "minimum": 1, "maximum": 100000 }
+          }
+        },
+        "sourceViewport": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x", "y", "width", "height"],
+          "properties": {
+            "x": { "type": "number", "minimum": 0 },
+            "y": { "type": "number", "minimum": 0 },
+            "width": { "type": "number", "minimum": 0.001 },
+            "height": { "type": "number", "minimum": 0.001 }
+          }
+        },
+        "processing": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "bypass": { "type": "boolean" },
+            "order": {
+              "const": ["sourceViewport", "warp", "blend", "blackUniformity", "color", "mask"]
+            }
+          }
+        },
+        "overlap": { "$ref": "#/$defs/edges" },
+        "blend": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "feather": { "type": "number", "minimum": 0.01, "maximum": 1 },
+            "gamma": { "type": "number", "minimum": 0.1, "maximum": 8 },
+            "map": { "$ref": "#/$defs/scalarAsset2d" }
+          }
+        },
+        "blackUniformity": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "lift": { "type": "number", "minimum": 0, "maximum": 1 },
+            "map": { "$ref": "#/$defs/blackAsset2d" }
+          }
+        },
+        "color": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "gain": { "$ref": "#/$defs/rgbGain" },
+            "offset": { "$ref": "#/$defs/rgbOffset" },
+            "gamma": { "$ref": "#/$defs/rgbGamma" },
+            "lut": { "$ref": "#/$defs/lut3d" }
+          }
+        },
+        "mask": {
+          "type": "object",
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": { "required": ["enabled"], "properties": { "enabled": { "const": true } } },
+              "then": {
+                "anyOf": [
+                  { "required": ["map"], "properties": { "map": { "type": "object" } } },
+                  { "required": ["path"], "properties": { "path": { "type": "array", "minItems": 3 } } }
+                ]
+              }
+            }
+          ],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "map": { "$ref": "#/$defs/scalarAsset2d" },
+            "path": {
+              "oneOf": [
+                { "type": "null" },
+                {
+                  "type": "array", "minItems": 3, "maxItems": 4096,
+                  "items": {
+                    "type": "object", "additionalProperties": false,
+                    "required": ["x", "y"],
+                    "properties": {
+                      "x": { "type": "number", "minimum": -2, "maximum": 3 },
+                      "y": { "type": "number", "minimum": -2, "maximum": 3 }
+                    }
+                  }
+                }
+              ]
+            },
+            "softness": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "warp": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "columns", "rows", "interpolation", "points"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "columns": { "type": "integer", "minimum": 2, "maximum": 128 },
+            "rows": { "type": "integer", "minimum": 2, "maximum": 128 },
+            "interpolation": { "enum": ["bilinear", "bicubic"] },
+            "points": {
+              "type": "array", "minItems": 4, "maxItems": 16641,
+              "items": {
+                "type": "object", "additionalProperties": false,
+                "required": ["u", "v", "x", "y"],
+                "properties": {
+                  "u": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "v": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "x": { "type": "number", "minimum": -2, "maximum": 3 },
+                  "y": { "type": "number", "minimum": -2, "maximum": 3 }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "edges": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "left": { "type": "number", "minimum": 0 },
+        "right": { "type": "number", "minimum": 0 },
+        "top": { "type": "number", "minimum": 0 },
+        "bottom": { "type": "number", "minimum": 0 }
+      }
+    },
+    "rgbGain": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "items": { "type": "number", "minimum": 0, "maximum": 8 }
+    },
+    "rgbOffset": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "items": { "type": "number", "minimum": -1, "maximum": 1 }
+    },
+    "rgbGamma": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "items": { "type": "number", "minimum": 0.1, "maximum": 8 }
+    }
+  }
+}

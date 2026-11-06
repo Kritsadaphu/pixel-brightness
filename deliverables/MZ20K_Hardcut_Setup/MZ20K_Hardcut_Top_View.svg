@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="760" viewBox="0 0 1100 760">
+<defs><style>text{font-family:Arial,'Noto Sans Thai',sans-serif;fill:#e9eef5}.title{font-size:22px;font-weight:700}.h{font-size:18px;font-weight:700}.t{font-size:15px}.dim{font-size:14px;fill:#aeb9c7}.wall{fill:#b9a27f;stroke:#f0dfc1;stroke-width:2}.beamL{fill:#158cff;fill-opacity:.24;stroke:#55b4ff;stroke-width:2}.beamR{fill:#ff542e;fill-opacity:.24;stroke:#ff8b70;stroke-width:2}.pj{fill:#202733;stroke:#fff;stroke-width:2}.cut{stroke:#ffe84a;stroke-width:5;stroke-dasharray:10 7}</style></defs>
+<rect width="1100" height="760" fill="#10151d"/><text x="55" y="48" class="title">MZ20K PORTRAIT — TOP VIEW / HARD CUT, NO BLENDING</text>
+<rect x="95" y="68" width="619.2" height="34" class="wall"/><text x="95" y="126" class="t">FACADE 14.40 m</text>
+<polygon points="237.33,565 57.267500000000005,85 417.39250000000004,85" class="beamL"/>
+<polygon points="546.9300000000001,565 366.8675,85 726.9925,85" class="beamR"/>
+<line x1="379.66" y1="58" x2="379.66" y2="135" class="cut"/><text x="389.66" y="150" class="h">HARD CUT @ Grid 16 / x=6.62 m</text>
+<rect x="222.33" y="545" width="30" height="40" class="pj"/><rect x="531.9300000000001" y="545" width="30" height="40" class="pj"/>
+<text x="162.33" y="610" class="h">PJ-L MZ20K</text><text x="471.93000000000006" y="610" class="h">PJ-R MZ20K</text>
+<line x1="62" y1="85" x2="62" y2="565" stroke="#aeb9c7" stroke-width="1"/><line x1="52" y1="85" x2="72" y2="85" stroke="#aeb9c7"/><line x1="52" y1="565" x2="72" y2="565" stroke="#aeb9c7"/><text x="20" y="325" class="dim" transform="rotate(-90 20 325)">THROW DISTANCE 20.00 m</text>
+<text x="55" y="650" class="t">ET-EMS650 • Throw ratio 1.49:1 • Full portrait optical footprint 8.375 × 13.40 m</text>
+<text x="55" y="680" class="t">ลำแสงซ้อนทางกายภาพประมาณ 1.175 m แต่ Content จบชนกันที่ร่อง — ไม่มี Blend ramp</text>
+<text x="55" y="710" class="dim">Schematic based on supplied elevation. Verify coordinates and obstructions by site survey before rigging.</text></svg>

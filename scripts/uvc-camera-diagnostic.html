@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="th"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pixel Brightness · USB Camera Check</title>
+<style>
+body{background:#101719;color:#e9f0ef;font:16px/1.65 system-ui,sans-serif;margin:0}main{max-width:1000px;margin:auto;padding:30px 24px}h1{font-size:28px;margin:4px 0}p{max-width:850px}.label{color:#68dec8;letter-spacing:.08em;font-size:14px}section{background:#1a2528;padding:20px;border-radius:12px;margin:20px 0}button,select{font:inherit;padding:10px;border-radius:7px;border:1px solid #658480;max-width:100%}select{background:#101719;color:white}button{background:#68dec8;color:#102421;cursor:pointer;margin:8px 8px 8px 0}button:disabled{opacity:.45;cursor:wait}label{display:block;margin-bottom:8px}#status{white-space:pre-wrap;overflow-wrap:anywhere}img{display:block;width:100%;height:auto;background:#050808;border-radius:8px}small{font-size:14px;color:#b2c7c3}.warning{color:#ffcd82}a{color:#68dec8}
+[hidden]{display:none!important}
+</style>
+<main><div class="label">PIXEL BRIGHTNESS / LOCAL CAMERA DIAGNOSTIC</div>
+<h1>ตรวจภาพ R50 ผ่าน USB</h1>
+<p>รับภาพแบบ UVC โดยไม่ใช้ Canon SDK · หน้านี้ไม่แก้ Arena, NDI หรือ Blending ที่กำลังใช้งาน</p>
+<section><strong>เตรียมกล้อง</strong><p>R50 → เมนูประแจ → Choose USB connection app → Video calls/streaming แล้วถอด–เสียบ USB ใหม่ หากเปิดกล้องไม่ได้ ให้ปิด EOS Utility หรือแอปอื่นที่ใช้กล้องก่อน</p>
+<label for="devices">กล้องที่ Windows ตรวจพบ</label><select id="devices"><option value="">กดค้นหากล้องก่อน</option></select><br>
+<button id="refresh">ค้นหากล้อง</button><button id="capture" disabled>รับภาพทดสอบ 1 เฟรม</button>
+<p id="status" role="status" aria-live="polite">พร้อมค้นหากล้อง — ยังไม่ได้รับภาพ</p></section>
+<img id="preview" alt="ภาพทดสอบจากกล้องที่เลือก" hidden>
+<p id="stamp"></p>
+<p class="warning">นี่คือภาพวิดีโอที่ผ่านการประมวลผล ไม่ใช่ RAW ยังไม่ได้ตรวจยืนยันการล็อกแสงหรือจับคู่เฟรมกับแพตเทิร์น และยังไม่ใช่ Auto Calibration</p>
+<small>โหมดทดสอบนี้รับ 1920 × 1080 / 30 fps แล้วเก็บหนึ่งเฟรม ไม่ใช่หน้าภาพสดต่อเนื่อง</small></main>
+<script>
+const select=document.querySelector('#devices'),refresh=document.querySelector('#refresh'),capture=document.querySelector('#capture'),status=document.querySelector('#status'),preview=document.querySelector('#preview'),stamp=document.querySelector('#stamp');
+let imageUrl=null,busy=false;
+function controls(value){busy=value;refresh.disabled=value;select.disabled=value;capture.disabled=value||!select.value;}
+function clearImage(){preview.hidden=true;preview.removeAttribute('src');stamp.textContent='';if(imageUrl){URL.revokeObjectURL(imageUrl);imageUrl=null;}}
+select.onchange=()=>{clearImage();controls(busy);};
+refresh.onclick=async()=>{controls(true);clearImage();status.textContent='กำลังตรวจกล้อง…';select.replaceChildren(new Option('เลือกกล้อง',''));try{const r=await fetch('/devices');const b=await r.json();if(!r.ok)throw Error(b.error);for(const d of b.devices)select.add(new Option(d.name,d.id));status.textContent=b.devices.length?'พบ '+b.devices.length+' กล้อง กรุณาเลือกตัวที่ต้องการ':'ยังไม่พบกล้อง UVC — เปลี่ยน R50 เป็น Video calls/streaming แล้วเสียบ USB ใหม่';}catch(e){status.textContent=e.message;}finally{controls(false);}};
+capture.onclick=async()=>{controls(true);clearImage();status.textContent='กำลังเปิดกล้องและรับภาพ อาจใช้เวลาถึง 15 วินาที…';try{const r=await fetch('/capture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deviceId:select.value})});if(!r.ok){const b=await r.json();throw Error(b.error);}imageUrl=URL.createObjectURL(await r.blob());preview.src=imageUrl;preview.hidden=false;stamp.textContent='รับภาพเมื่อ '+new Date(Number(r.headers.get('X-UVC-Received-At'))).toLocaleString('th-TH');status.textContent='รับภาพสำเร็จ — โปรดตรวจว่าภาพไม่กลับหัว สีถูกต้อง และเห็นพื้นที่ฉายครบ';}catch(e){clearImage();status.textContent=e.message;}finally{controls(false);}};
+</script></html>

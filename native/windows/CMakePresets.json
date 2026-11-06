@@ -1,0 +1,51 @@
+{
+  "version": 5,
+  "cmakeMinimumRequired": { "major": 3, "minor": 24, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "vs2022-x64",
+      "displayName": "Visual Studio 2022 x64",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/out/build/vs2022-x64",
+      "cacheVariables": {
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/vs2022-x64",
+        "PB_FETCH_SPOUT2": "ON"
+      }
+    },
+    {
+      "name": "vs2022-x64-no-spout",
+      "inherits": "vs2022-x64",
+      "binaryDir": "${sourceDir}/out/build/vs2022-x64-no-spout",
+      "cacheVariables": { "PB_FETCH_SPOUT2": "OFF" }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "release", "configurePreset": "vs2022-x64", "configuration": "Release",
+      "targets": ["pixel-brightness-renderer", "pbwin-config-tests", "pbwin-shader-tests", "pbwin-pipe-tests"]
+    },
+    {
+      "name": "debug", "configurePreset": "vs2022-x64", "configuration": "Debug",
+      "targets": ["pixel-brightness-renderer", "pbwin-config-tests", "pbwin-shader-tests", "pbwin-pipe-tests"]
+    },
+    {
+      "name": "release-no-spout", "configurePreset": "vs2022-x64-no-spout", "configuration": "Release",
+      "targets": ["pixel-brightness-renderer", "pbwin-config-tests", "pbwin-shader-tests", "pbwin-pipe-tests"]
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "test-release",
+      "configurePreset": "vs2022-x64",
+      "configuration": "Release",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "test-release-no-spout",
+      "configurePreset": "vs2022-x64-no-spout",
+      "configuration": "Release",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}

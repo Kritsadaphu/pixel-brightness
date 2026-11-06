@@ -1,0 +1,139 @@
+PIXEL BRIGHTNESS V3 — เริ่มใช้งานบน WINDOWS 11
+================================================
+
+หน้าที่ของระบบ
+---------------
+Resolume Arena ใช้เล่นสื่อและวาง Layer/Composition เท่านั้น แล้วส่งภาพแม่หนึ่งภาพ
+ผ่าน Spout ชื่อ PB-COMPOSITION
+
+Pixel Brightness เป็น Output ตัวสุดท้ายก่อนเข้าโปรเจคเตอร์ โดยทำเองทั้งหมด:
+- เลือก Area จากภาพแม่ให้โปรเจคเตอร์แต่ละตัว
+- ดึงภาพ/แก้โค้ง/keystone/deflex ด้วย mesh สูงสุด 128 x 128
+- edge blend, mask, black uniformity, gamma, color และ LUT
+- ส่งออกจอจริงผ่าน NVIDIA/DXGI
+
+สิ่งที่ต้องติดตั้งบน Windows ก่อน
+---------------------------------
+1. Windows 11 Pro 64-bit และ NVIDIA Studio/Production driver รุ่นปัจจุบัน
+2. Resolume Arena และ Spout
+3. Node.js 22 x64 แบบ MSI ทางการ ติดตั้งไว้ใต้ Program Files
+4. Git for Windows
+5. CMake 3.24 ขึ้นไป และเลือกเพิ่ม CMake/CTest เข้า system PATH ตอนติดตั้ง
+6. Visual Studio 2022 Build Tools พร้อม workload “Desktop development with C++”
+7. ตั้งเครือข่ายที่ใช้งานเป็น Private network
+8. ต่ออินเทอร์เน็ตในรอบติดตั้งแรก เพื่อให้ npm/CMake ดาวน์โหลด dependency ที่ pin รุ่นไว้
+
+วิธีติดตั้งแบบเครื่องเดียว
+--------------------------
+1. ก่อนแตก ZIP ให้เทียบ SHA-256 ของ ZIP กับไฟล์ .sha256 ที่ได้รับผ่านช่องทาง
+   release ที่เชื่อถือได้ จากนั้นแตกลงโฟลเดอร์ในเครื่อง ห้ามรันจากใน ZIP
+   และห้ามวางใน network share
+2. ห้ามลบหรือแก้ MANIFEST-SHA256.txt ตัวติดตั้งจะตรวจทุก source file ก่อน UAC
+   คัดลอกเฉพาะไฟล์ที่ hash ตรงเข้า protected bootstrap ก่อนรันด้วยสิทธิ์ Admin
+   และตรวจซ้ำใน protected build staging ก่อนรัน npm/CMake
+3. ล็อกอินด้วยบัญชี Windows สำหรับงานฉาย ซึ่งควรเป็นบัญชีธรรมดา ไม่ใช่ Administrator
+4. ดับเบิลคลิก:
+
+   INSTALL-WINDOWS.cmd
+
+   ไฟล์นี้เรียก deploy\windows\Setup-PixelBrightness.cmd ภายในชุดติดตั้ง
+
+5. กดอนุญาต UAC หนึ่งครั้ง ตัวติดตั้งจะ build และตรวจ native renderer ก่อนติดตั้ง
+6. ตัวติดตั้งจะยังไม่เปิดภาพออกโปรเจคเตอร์ จนกว่าจะ bind จอจริงสำเร็จ
+7. Web Control ที่เปิดบน Windows เครื่องเดียวกันไม่ต้อง Pair; เครื่องอื่นใน LAN
+   ยังต้องใช้ token เว้นแต่ติดตั้งโดยระบุ IP/host ที่เชื่อถือแบบเจาะจง
+8. บนเครื่อง Windows ให้เปิด Web Control ที่ http://localhost:3000 เพื่อใช้สิทธิ์
+   loopback แบบไม่ต้อง Pair; อย่าใช้ IP ของเครื่องแทน localhost หากต้องการโหมดนี้
+
+การต่อและ bind โปรเจคเตอร์
+--------------------------
+1. ต่อโปรเจคเตอร์ทุกตัวเข้าการ์ด NVIDIA ใบเดียวกัน
+2. Windows Settings > System > Display เลือก “Extend these displays”
+3. ตั้งทุกโปรเจคเตอร์ให้ความละเอียดและ refresh rate เดียวกัน
+4. ปิด HDR, Night Light, VRR/G-SYNC และใช้ scaling 100% บนจอโปรเจคเตอร์
+5. กด Identify ใน Windows Display Settings และจดว่า DISPLAY ใดคือโปรเจคเตอร์
+   ซ้าย/ขวาจริง โดยเฉพาะเมื่อเป็นรุ่นเดียวกันที่ชื่อเหมือนกัน
+6. เปิด Windows Terminal แบบ Administrator แล้วดูรายชื่อจอ:
+
+   & 'C:\ProgramData\Pixel Brightness\Bind-PixelBrightnessDisplays.ps1'
+
+7. bind ด้วยชื่อจริงที่แสดง เรียงซ้ายไปขวาตามที่ Identify แล้ว เช่น:
+
+   & 'C:\ProgramData\Pixel Brightness\Bind-PixelBrightnessDisplays.ps1' `
+     -GdiName '\\.\DISPLAY2','\\.\DISPLAY3' `
+     -Overlap 240 -StartShow
+
+ห้ามเดา DISPLAY2/DISPLAY3 ให้ใช้ค่าที่ inventory แสดงจริงเท่านั้น หลัง StartShow
+ให้เปิด Identify grid ใน Web Control ตรวจ A/B อีกครั้งก่อน calibration
+
+ตั้งค่า Resolume Arena
+----------------------
+1. Windows Settings > System > Display > Graphics: ตั้ง Resolume Arena เป็น
+   High performance (การ์ด NVIDIA ใบเดียวกับที่ต่อโปรเจคเตอร์) เพราะ Spout แชร์ GPU texture
+2. ตั้ง Composition ให้ตรงกับ canvas และ frame rate ที่ binder รายงาน
+3. ใน Arena เปิด Output > Advanced แล้วสร้าง Spout Screen เพียง 1 จอ
+4. เปลี่ยนชื่อ Spout Screen เป็น PB-COMPOSITION ให้ตรงตัวพิมพ์ทุกตัว
+5. ตั้ง Spout Screen ให้เท่า canvas เต็ม ใส่ rectangular slice เดียวคลุม Composition
+   แบบ 1:1 และปิด transform, mask, warp และ blend ของ Arena
+6. ห้ามใช้ direct Composition Spout เพราะชื่อ sender จะเป็น Composition และระบบจะไม่รับ
+7. ห้าม assign Spout Screen/Advanced Output นี้เข้าโปรเจคเตอร์จริง
+8. ใช้ Arena วาง Position ของ Layer และเล่นสื่อเท่านั้น
+9. Area, warp, curve, blend, mask และ black correction ทำใน Pixel Brightness Web Control
+
+ตั้งเวลาเปิด–ปิดรายสัปดาห์ (ติดตั้งแบบเครื่องเดียว / Role All)
+---------------------------------------------------------------
+1. ต้อง bind จอจริงเรียบร้อย และตั้ง Projector Control ให้มี Panasonic PT-VMZ51
+   ที่เปิดใช้งานครบ 5 ตัว พร้อมทดสอบ LAN command/status ก่อน
+2. ตั้ง BIOS/UEFI RTC ให้ปลุกเครื่องเฉพาะวันทำงานและก่อนเวลา Start ในเว็บ
+   เผื่อเวลา boot, เปิด Arena และ warm-up โปรเจคเตอร์ ตาราง BIOS กับตารางเว็บ
+   แยกจากกัน ต้องปิดวันหยุดให้ตรงกันทั้งสองจุด
+3. ตั้ง Windows auto-logon เข้าบัญชี Show แบบ local บัญชีเดิมที่ใช้ติดตั้ง
+   Pixel Brightness ไม่รับหรือเก็บรหัสผ่าน Windows
+4. เปิด http://localhost:3000 > Show Schedule ใส่ node ID, path Arena.exe,
+   path composition .avc, วันทำงาน เวลา Start/Shutdown แล้วกด SAVE WEEKLY SCHEDULE
+5. การ Save ไม่สั่งเปิดหรือปิดทันที ถ้า Save หลังเวลา Start ของวันนี้ ค่านั้นจะเริ่มใช้
+   ในวันทำงานถัดไป ถ้ามีรอบงานกำลังทำอยู่ รอบนั้นจะยึดเวลา Shutdown เดิมแม้แก้ตาราง
+   หรือปิด Master schedule ภายหลัง
+6. ตอนปิด ระบบทำตามลำดับบังคับ: Ctrl+S ใน Arena > ปิด Arena แบบปกติ >
+   สั่งโปรเจคเตอร์ Standby และรอทั้ง 5 ตัวรายงาน Standby จริง > หยุด Show >
+   Windows shutdown แบบไม่ force
+   ถ้าพิสูจน์ว่า Arena Save/ปิดสำเร็จไม่ได้ เครื่องจะไม่ shutdown
+   ถ้าไฟดับหรือ reboot ระหว่างทาง บูตถัดไปจะไม่สั่ง shutdown ซ้ำเป็นวงวน
+7. ก่อนปล่อยทำงานเอง ให้ทดสอบ cold boot และ shutdown จริงแบบมีคนเฝ้า 1 รอบ
+   ตรวจไฟล์ .avc, PB-COMPOSITION, mapping 5 จอ, การ Save และ standby ทุกเครื่อง
+
+หมายเหตุ: Role All ให้ scheduler เป็นผู้เริ่ม PixelBrightness-Show อัตโนมัติเพียงตัวเดียว
+ส่วน Role Node แบบแยกเครื่องยังคงเริ่ม Show ตอน logon และไม่มี weekly worker
+
+ตรวจรับก่อนใช้งานจริง
+----------------------
+ก่อนรัน ให้เปิด Arena เพียงหนึ่ง instance และให้ PB-COMPOSITION กำลังส่งภาพที่
+ขนาด/frame rate ตรงกับ binder อยู่ตลอดการตรวจ
+
+เปิด Windows Terminal แบบ Administrator แล้วรัน:
+
+   & 'C:\ProgramData\Pixel Brightness\Test-PixelBrightness.ps1' -Full
+
+ระหว่างตรวจ จอโปรเจคเตอร์ตัวแรกจะขึ้น Identify ชั่วครู่ ระบบจะส่งคำสั่งผ่าน
+Server -> Node -> native renderer รอ acknowledgement แล้วคืนทุกจอเป็นภาพ Content
+พร้อมตรวจผลการคืนภาพจาก native telemetry อัตโนมัติ ถ้าคืนภาพไม่สำเร็จผลตรวจจะ Fail
+
+จากนั้นทดสอบต่อเนื่องอย่างน้อย 2 ชั่วโมงที่ frame rate จริง รวมถึง:
+- ปิด/เปิด Arena และตรวจว่าภาพ fail-to-black
+- ถอด/ต่อจอใหม่และ cold boot
+- ตรวจ test grid/identify ให้จอ A/B ถูกตำแหน่ง
+- ใช้กล้องความเร็วสูงตรวจรอยต่อขณะภาพเคลื่อนที่ หากต้องการยืนยัน phase จริง
+
+ข้อจำกัดของรุ่นนี้
+------------------
+- Manual Area/mesh/blend/mask/black/color พร้อมใช้งานในโค้ดรุ่นนี้
+- ระบบ orchestration และ measured calibration solver มีแล้ว แต่ Canon R50 hardware
+  capture adapter ยังไม่ได้เปิดใช้งาน จึงยังห้ามอ้างว่า Auto Camera Calibration พร้อมใช้งานจริง
+- Spout ใช้ในเครื่องเดียว ไม่ส่งภาพข้าม LAN
+- software pacing ไม่ใช่ genlock; งานหลายเครื่องหรือรอยต่อที่ต้องตรงระดับฮาร์ดแวร์
+  ต้องใช้ระบบ frame lock/RTX PRO Sync ที่เข้ากันได้
+- การ build และการทดสอบ native Windows จริงต้องเกิดบน Windows/A400 เครื่องเป้าหมาย
+
+คู่มือฉบับเต็ม
+--------------
+ดู deploy\windows\README.md

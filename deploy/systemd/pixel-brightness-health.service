@@ -1,0 +1,13 @@
+[Unit]
+Description=Pixel Brightness V2 health and recovery check
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/pixel-brightness/server.env
+EnvironmentFile=-/etc/pixel-brightness/node.env
+ExecStart=/usr/local/lib/pixel-brightness-health-check --repair
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true

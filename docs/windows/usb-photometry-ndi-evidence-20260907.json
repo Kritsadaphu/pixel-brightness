@@ -1,0 +1,2421 @@
+{
+  "date": "2026-09-07",
+  "scope": "Windows MAPPINGPC; isolated native NDI test sources and local software receivers, not optical/projector certification",
+  "before": {
+    "schema": "pb-five-output-soak-v1",
+    "width": 1920,
+    "height": 1200,
+    "outputs": 5,
+    "targetFps": 30,
+    "syntheticInputFps": 30,
+    "networkPath": "local-host-decode-only",
+    "physicalProjectorVerified": false,
+    "rounds": [
+      {
+        "index": 0,
+        "outputs": [
+          {
+            "outputId": "soak1",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0256716,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 109,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 109,
+            "sourceAddress": "192.168.1.200:5968",
+            "sourceName": "MAPPINGPC (PB-VIDEO-8e22ebf1-0834-4171-89c4-eeb4e3799c60-soak1)",
+            "timecodeRegressions": 0,
+            "observedFps": 21.688643563578648
+          },
+          {
+            "outputId": "soak2",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0357316,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 109,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 109,
+            "sourceAddress": "192.168.1.200:5969",
+            "sourceName": "MAPPINGPC (PB-VIDEO-8e22ebf1-0834-4171-89c4-eeb4e3799c60-soak2)",
+            "timecodeRegressions": 0,
+            "observedFps": 21.645315647879247
+          },
+          {
+            "outputId": "soak3",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0090212,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 108,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 108,
+            "sourceAddress": "192.168.1.200:5970",
+            "sourceName": "MAPPINGPC (PB-VIDEO-8e22ebf1-0834-4171-89c4-eeb4e3799c60-soak3)",
+            "timecodeRegressions": 0,
+            "observedFps": 21.5610986034557
+          },
+          {
+            "outputId": "soak4",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.009247,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 108,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 108,
+            "sourceAddress": "192.168.1.200:5971",
+            "sourceName": "MAPPINGPC (PB-VIDEO-8e22ebf1-0834-4171-89c4-eeb4e3799c60-soak4)",
+            "timecodeRegressions": 0,
+            "observedFps": 21.560126701677916
+          },
+          {
+            "outputId": "soak5",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0210021,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 108,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 108,
+            "sourceAddress": "192.168.1.200:5972",
+            "sourceName": "MAPPINGPC (PB-VIDEO-8e22ebf1-0834-4171-89c4-eeb4e3799c60-soak5)",
+            "timecodeRegressions": 0,
+            "observedFps": 21.5096504341235
+          }
+        ],
+        "telemetry": {
+          "black": false,
+          "elapsedSeconds": 9.7356531,
+          "event": "status",
+          "outputs": [
+            {
+              "connections": 0,
+              "outputId": "soak1",
+              "readbackBackpressure": 0,
+              "sentFrames": 225,
+              "submittedFrames": 228,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak2",
+              "readbackBackpressure": 0,
+              "sentFrames": 225,
+              "submittedFrames": 228,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak3",
+              "readbackBackpressure": 0,
+              "sentFrames": 225,
+              "submittedFrames": 228,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak4",
+              "readbackBackpressure": 0,
+              "sentFrames": 225,
+              "submittedFrames": 228,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak5",
+              "readbackBackpressure": 0,
+              "sentFrames": 225,
+              "submittedFrames": 228,
+              "transportReplacedFrames": 0
+            }
+          ],
+          "physicalPresentationVerified": false,
+          "receivedFrames": 285,
+          "rejectedFrames": 0,
+          "sourceValid": true,
+          "ticks": 228,
+          "timingMs": {
+            "readback": 8304.7277,
+            "receive": 0.7489000000000008,
+            "render": 362.80370000000016,
+            "send": 14.132899999999983,
+            "upload": 684.2312000000003
+          }
+        }
+      },
+      {
+        "index": 1,
+        "outputs": [
+          {
+            "outputId": "soak1",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0403425,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 110,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 110,
+            "sourceAddress": "192.168.1.200:5968",
+            "sourceName": "MAPPINGPC (PB-VIDEO-8e22ebf1-0834-4171-89c4-eeb4e3799c60-soak1)",
+            "timecodeRegressions": 0,
+            "observedFps": 21.82391375189285
+          },
+          {
+            "outputId": "soak2",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0006029,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 109,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 109,
+            "sourceAddress": "192.168.1.200:5969",
+            "sourceName": "MAPPINGPC (PB-VIDEO-8e22ebf1-0834-4171-89c4-eeb4e3799c60-soak2)",
+            "timecodeRegressions": 0,
+            "observedFps": 21.79737167292368
+          },
+          {
+            "outputId": "soak3",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0132983,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 109,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 109,
+            "sourceAddress": "192.168.1.200:5970",
+            "sourceName": "MAPPINGPC (PB-VIDEO-8e22ebf1-0834-4171-89c4-eeb4e3799c60-soak3)",
+            "timecodeRegressions": 0,
+            "observedFps": 21.742173211596047
+          },
+          {
+            "outputId": "soak4",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0276115,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 109,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 109,
+            "sourceAddress": "192.168.1.200:5971",
+            "sourceName": "MAPPINGPC (PB-VIDEO-8e22ebf1-0834-4171-89c4-eeb4e3799c60-soak4)",
+            "timecodeRegressions": 0,
+            "observedFps": 21.68027501727212
+          },
+          {
+            "outputId": "soak5",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0259565,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 110,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 110,
+            "sourceAddress": "192.168.1.200:5972",
+            "sourceName": "MAPPINGPC (PB-VIDEO-8e22ebf1-0834-4171-89c4-eeb4e3799c60-soak5)",
+            "timecodeRegressions": 0,
+            "observedFps": 21.88638122912524
+          }
+        ],
+        "telemetry": {
+          "black": false,
+          "elapsedSeconds": 19.450556,
+          "event": "status",
+          "outputs": [
+            {
+              "connections": 0,
+              "outputId": "soak1",
+              "readbackBackpressure": 0,
+              "sentFrames": 441,
+              "submittedFrames": 444,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak2",
+              "readbackBackpressure": 0,
+              "sentFrames": 441,
+              "submittedFrames": 444,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak3",
+              "readbackBackpressure": 0,
+              "sentFrames": 441,
+              "submittedFrames": 444,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak4",
+              "readbackBackpressure": 0,
+              "sentFrames": 441,
+              "submittedFrames": 444,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak5",
+              "readbackBackpressure": 0,
+              "sentFrames": 441,
+              "submittedFrames": 444,
+              "transportReplacedFrames": 0
+            }
+          ],
+          "physicalPresentationVerified": false,
+          "receivedFrames": 569,
+          "rejectedFrames": 0,
+          "sourceValid": true,
+          "ticks": 444,
+          "timingMs": {
+            "readback": 16975.071599999963,
+            "receive": 3.0301,
+            "render": 677.9641000000003,
+            "send": 25.49069999999992,
+            "upload": 1376.3418999999994
+          }
+        }
+      },
+      {
+        "index": 2,
+        "outputs": [
+          {
+            "outputId": "soak1",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0240923,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 109,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 109,
+            "sourceAddress": "192.168.1.200:5968",
+            "sourceName": "MAPPINGPC (PB-VIDEO-8e22ebf1-0834-4171-89c4-eeb4e3799c60-soak1)",
+            "timecodeRegressions": 0,
+            "observedFps": 21.69546128760413
+          },
+          {
+            "outputId": "soak2",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0252496,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 109,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 109,
+            "sourceAddress": "192.168.1.200:5969",
+            "sourceName": "MAPPINGPC (PB-VIDEO-8e22ebf1-0834-4171-89c4-eeb4e3799c60-soak2)",
+            "timecodeRegressions": 0,
+            "observedFps": 21.690464887555038
+          },
+          {
+            "outputId": "soak3",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0418882,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 109,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 109,
+            "sourceAddress": "192.168.1.200:5970",
+            "sourceName": "MAPPINGPC (PB-VIDEO-8e22ebf1-0834-4171-89c4-eeb4e3799c60-soak3)",
+            "timecodeRegressions": 0,
+            "observedFps": 21.618884766227065
+          },
+          {
+            "outputId": "soak4",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0012561,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 109,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 109,
+            "sourceAddress": "192.168.1.200:5971",
+            "sourceName": "MAPPINGPC (PB-VIDEO-8e22ebf1-0834-4171-89c4-eeb4e3799c60-soak4)",
+            "timecodeRegressions": 0,
+            "observedFps": 21.7945247794849
+          },
+          {
+            "outputId": "soak5",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0104308,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 109,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 109,
+            "sourceAddress": "192.168.1.200:5972",
+            "sourceName": "MAPPINGPC (PB-VIDEO-8e22ebf1-0834-4171-89c4-eeb4e3799c60-soak5)",
+            "timecodeRegressions": 0,
+            "observedFps": 21.754616389472936
+          }
+        ],
+        "telemetry": {
+          "black": false,
+          "elapsedSeconds": 28.9558599,
+          "event": "status",
+          "outputs": [
+            {
+              "connections": 0,
+              "outputId": "soak1",
+              "readbackBackpressure": 0,
+              "sentFrames": 652,
+              "submittedFrames": 655,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak2",
+              "readbackBackpressure": 0,
+              "sentFrames": 652,
+              "submittedFrames": 655,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak3",
+              "readbackBackpressure": 0,
+              "sentFrames": 652,
+              "submittedFrames": 655,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak4",
+              "readbackBackpressure": 0,
+              "sentFrames": 652,
+              "submittedFrames": 655,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak5",
+              "readbackBackpressure": 0,
+              "sentFrames": 652,
+              "submittedFrames": 655,
+              "transportReplacedFrames": 0
+            }
+          ],
+          "physicalPresentationVerified": false,
+          "receivedFrames": 847,
+          "rejectedFrames": 0,
+          "sourceValid": true,
+          "ticks": 655,
+          "timingMs": {
+            "readback": 25423.598699999955,
+            "receive": 3.7773999999999974,
+            "render": 977.5772000000006,
+            "send": 39.13719999999989,
+            "upload": 2098.6222999999995
+          }
+        }
+      },
+      {
+        "index": 3,
+        "outputs": [
+          {
+            "outputId": "soak1",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0227222,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 112,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 112,
+            "sourceAddress": "192.168.1.200:5968",
+            "sourceName": "MAPPINGPC (PB-VIDEO-8e22ebf1-0834-4171-89c4-eeb4e3799c60-soak1)",
+            "timecodeRegressions": 0,
+            "observedFps": 22.29866505457937
+          },
+          {
+            "outputId": "soak2",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0307117,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 112,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 112,
+            "sourceAddress": "192.168.1.200:5969",
+            "sourceName": "MAPPINGPC (PB-VIDEO-8e22ebf1-0834-4171-89c4-eeb4e3799c60-soak2)",
+            "timecodeRegressions": 0,
+            "observedFps": 22.26325153953863
+          },
+          {
+            "outputId": "soak3",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0382317,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 112,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 112,
+            "sourceAddress": "192.168.1.200:5970",
+            "sourceName": "MAPPINGPC (PB-VIDEO-8e22ebf1-0834-4171-89c4-eeb4e3799c60-soak3)",
+            "timecodeRegressions": 0,
+            "observedFps": 22.23002169590573
+          },
+          {
+            "outputId": "soak4",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0060065,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 111,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 111,
+            "sourceAddress": "192.168.1.200:5971",
+            "sourceName": "MAPPINGPC (PB-VIDEO-8e22ebf1-0834-4171-89c4-eeb4e3799c60-soak4)",
+            "timecodeRegressions": 0,
+            "observedFps": 22.173363138861287
+          },
+          {
+            "outputId": "soak5",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0174501,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 111,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 111,
+            "sourceAddress": "192.168.1.200:5972",
+            "sourceName": "MAPPINGPC (PB-VIDEO-8e22ebf1-0834-4171-89c4-eeb4e3799c60-soak5)",
+            "timecodeRegressions": 0,
+            "observedFps": 22.122791016895217
+          }
+        ],
+        "telemetry": {
+          "black": false,
+          "elapsedSeconds": 38.4863682,
+          "event": "status",
+          "outputs": [
+            {
+              "connections": 0,
+              "outputId": "soak1",
+              "readbackBackpressure": 0,
+              "sentFrames": 865,
+              "submittedFrames": 868,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak2",
+              "readbackBackpressure": 0,
+              "sentFrames": 865,
+              "submittedFrames": 868,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak3",
+              "readbackBackpressure": 0,
+              "sentFrames": 865,
+              "submittedFrames": 868,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak4",
+              "readbackBackpressure": 0,
+              "sentFrames": 865,
+              "submittedFrames": 868,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak5",
+              "readbackBackpressure": 0,
+              "sentFrames": 865,
+              "submittedFrames": 868,
+              "transportReplacedFrames": 0
+            }
+          ],
+          "physicalPresentationVerified": false,
+          "receivedFrames": 1127,
+          "rejectedFrames": 0,
+          "sourceValid": true,
+          "ticks": 868,
+          "timingMs": {
+            "readback": 33902.82509999999,
+            "receive": 4.4766999999999895,
+            "render": 1273.002400000001,
+            "send": 52.891999999999896,
+            "upload": 2822.6878
+          }
+        }
+      }
+    ],
+    "cleanup": {
+      "video": {
+        "blackSubmitted": true,
+        "contentRestored": false,
+        "event": "stopped",
+        "physicalBlackVerified": false
+      },
+      "input": {
+        "blackSubmitted": true,
+        "contentRestored": false,
+        "event": "stopped",
+        "physicalBlackVerified": false
+      }
+    },
+    "adapter": "NVIDIA RTX A400",
+    "passed30Fps": false,
+    "passed60Fps": false
+  },
+  "after30": {
+    "schema": "pb-five-output-soak-v1",
+    "width": 1920,
+    "height": 1200,
+    "outputs": 5,
+    "targetFps": 30,
+    "syntheticInputFps": 30,
+    "networkPath": "local-host-decode-only",
+    "physicalProjectorVerified": false,
+    "rounds": [
+      {
+        "index": 0,
+        "outputs": [
+          {
+            "outputId": "soak1",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0287882,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 147,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 147,
+            "sourceAddress": "192.168.1.200:5968",
+            "sourceName": "MAPPINGPC (PB-VIDEO-7bf2978b-faf9-4e64-8c18-2b8e068b06e4-soak1)",
+            "timecodeRegressions": 0,
+            "observedFps": 29.231694426899903
+          },
+          {
+            "outputId": "soak2",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0129688,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 147,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 147,
+            "sourceAddress": "192.168.1.200:5969",
+            "sourceName": "MAPPINGPC (PB-VIDEO-7bf2978b-faf9-4e64-8c18-2b8e068b06e4-soak2)",
+            "timecodeRegressions": 0,
+            "observedFps": 29.323940735477944
+          },
+          {
+            "outputId": "soak3",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0233304,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 147,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 147,
+            "sourceAddress": "192.168.1.200:5970",
+            "sourceName": "MAPPINGPC (PB-VIDEO-7bf2978b-faf9-4e64-8c18-2b8e068b06e4-soak3)",
+            "timecodeRegressions": 0,
+            "observedFps": 29.263454380782917
+          },
+          {
+            "outputId": "soak4",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0285267,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 147,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 147,
+            "sourceAddress": "192.168.1.200:5971",
+            "sourceName": "MAPPINGPC (PB-VIDEO-7bf2978b-faf9-4e64-8c18-2b8e068b06e4-soak4)",
+            "timecodeRegressions": 0,
+            "observedFps": 29.233214571576205
+          },
+          {
+            "outputId": "soak5",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0019824,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 146,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 146,
+            "sourceAddress": "192.168.1.200:5972",
+            "sourceName": "MAPPINGPC (PB-VIDEO-7bf2978b-faf9-4e64-8c18-2b8e068b06e4-soak5)",
+            "timecodeRegressions": 0,
+            "observedFps": 29.188427372315424
+          }
+        ],
+        "telemetry": {
+          "black": false,
+          "elapsedSeconds": 9.6860102,
+          "event": "status",
+          "outputs": [
+            {
+              "connections": 0,
+              "outputId": "soak1",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.34900000000002,
+                "copy": 955.3263999999996,
+                "map": 1.5465,
+                "poll": 2.3982999999999994
+              },
+              "sentFrames": 278,
+              "submittedFrames": 281,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak2",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.525400000000024,
+                "copy": 1050.2502,
+                "map": 1.0321999999999998,
+                "poll": 1.1207999999999991
+              },
+              "sentFrames": 278,
+              "submittedFrames": 281,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak3",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.575200000000025,
+                "copy": 1135.2715999999996,
+                "map": 1.2297999999999996,
+                "poll": 1.4304000000000001
+              },
+              "sentFrames": 278,
+              "submittedFrames": 281,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak4",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.023700000000009,
+                "copy": 1211.4867000000002,
+                "map": 1.370800000000001,
+                "poll": 1.597899999999999
+              },
+              "sentFrames": 278,
+              "submittedFrames": 281,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak5",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 3.6802000000000197,
+                "copy": 1230.8841000000004,
+                "map": 1.5236,
+                "poll": 2.056999999999999
+              },
+              "sentFrames": 278,
+              "submittedFrames": 281,
+              "transportReplacedFrames": 0
+            }
+          ],
+          "physicalPresentationVerified": false,
+          "receivedFrames": 284,
+          "rejectedFrames": 0,
+          "sourceValid": true,
+          "ticks": 281,
+          "timingMs": {
+            "readback": 5615.677000000004,
+            "receive": 1.1886999999999994,
+            "render": 513.346799999999,
+            "send": 19.047899999999995,
+            "upload": 761.8727000000001
+          }
+        }
+      },
+      {
+        "index": 1,
+        "outputs": [
+          {
+            "outputId": "soak1",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0044427,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 147,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 147,
+            "sourceAddress": "192.168.1.200:5968",
+            "sourceName": "MAPPINGPC (PB-VIDEO-7bf2978b-faf9-4e64-8c18-2b8e068b06e4-soak1)",
+            "timecodeRegressions": 0,
+            "observedFps": 29.373900114792
+          },
+          {
+            "outputId": "soak2",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0152277,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 147,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 147,
+            "sourceAddress": "192.168.1.200:5969",
+            "sourceName": "MAPPINGPC (PB-VIDEO-7bf2978b-faf9-4e64-8c18-2b8e068b06e4-soak2)",
+            "timecodeRegressions": 0,
+            "observedFps": 29.31073299024888
+          },
+          {
+            "outputId": "soak3",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0191756,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 147,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 147,
+            "sourceAddress": "192.168.1.200:5970",
+            "sourceName": "MAPPINGPC (PB-VIDEO-7bf2978b-faf9-4e64-8c18-2b8e068b06e4-soak3)",
+            "timecodeRegressions": 0,
+            "observedFps": 29.2876782394304
+          },
+          {
+            "outputId": "soak4",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0310367,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 147,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 147,
+            "sourceAddress": "192.168.1.200:5971",
+            "sourceName": "MAPPINGPC (PB-VIDEO-7bf2978b-faf9-4e64-8c18-2b8e068b06e4-soak4)",
+            "timecodeRegressions": 0,
+            "observedFps": 29.21863002907532
+          },
+          {
+            "outputId": "soak5",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.027637,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 147,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 147,
+            "sourceAddress": "192.168.1.200:5972",
+            "sourceName": "MAPPINGPC (PB-VIDEO-7bf2978b-faf9-4e64-8c18-2b8e068b06e4-soak5)",
+            "timecodeRegressions": 0,
+            "observedFps": 29.238387735630077
+          }
+        ],
+        "telemetry": {
+          "black": false,
+          "elapsedSeconds": 19.387493,
+          "event": "status",
+          "outputs": [
+            {
+              "connections": 0,
+              "outputId": "soak1",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.4417000000000426,
+                "copy": 1960.1417999999996,
+                "map": 3.157699999999998,
+                "poll": 4.764599999999994
+              },
+              "sentFrames": 559,
+              "submittedFrames": 562,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak2",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.5801000000000522,
+                "copy": 2139.4271999999983,
+                "map": 2.211100000000001,
+                "poll": 2.3262999999999976
+              },
+              "sentFrames": 559,
+              "submittedFrames": 562,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak3",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.6417000000000477,
+                "copy": 2345.779100000002,
+                "map": 2.537699999999998,
+                "poll": 2.742499999999998
+              },
+              "sentFrames": 559,
+              "submittedFrames": 562,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak4",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.083000000000039,
+                "copy": 2399.8122000000008,
+                "map": 2.7956999999999996,
+                "poll": 3.1738
+              },
+              "sentFrames": 559,
+              "submittedFrames": 562,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak5",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 3.7410000000000423,
+                "copy": 2520.003599999999,
+                "map": 3.0354000000000023,
+                "poll": 3.7357999999999927
+              },
+              "sentFrames": 559,
+              "submittedFrames": 562,
+              "transportReplacedFrames": 0
+            }
+          ],
+          "physicalPresentationVerified": false,
+          "receivedFrames": 568,
+          "rejectedFrames": 0,
+          "sourceValid": true,
+          "ticks": 562,
+          "timingMs": {
+            "readback": 11416.98079999999,
+            "receive": 4.111899999999999,
+            "render": 995.1014999999989,
+            "send": 37.01110000000006,
+            "upload": 1521.5493000000006
+          }
+        }
+      },
+      {
+        "index": 2,
+        "outputs": [
+          {
+            "outputId": "soak1",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0056879,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 147,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 147,
+            "sourceAddress": "192.168.1.200:5968",
+            "sourceName": "MAPPINGPC (PB-VIDEO-7bf2978b-faf9-4e64-8c18-2b8e068b06e4-soak1)",
+            "timecodeRegressions": 0,
+            "observedFps": 29.36659315096333
+          },
+          {
+            "outputId": "soak2",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0126425,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 147,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 147,
+            "sourceAddress": "192.168.1.200:5969",
+            "sourceName": "MAPPINGPC (PB-VIDEO-7bf2978b-faf9-4e64-8c18-2b8e068b06e4-soak2)",
+            "timecodeRegressions": 0,
+            "observedFps": 29.32584958931342
+          },
+          {
+            "outputId": "soak3",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0028278,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 146,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 146,
+            "sourceAddress": "192.168.1.200:5970",
+            "sourceName": "MAPPINGPC (PB-VIDEO-7bf2978b-faf9-4e64-8c18-2b8e068b06e4-soak3)",
+            "timecodeRegressions": 0,
+            "observedFps": 29.183494982577653
+          },
+          {
+            "outputId": "soak4",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0285475,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 147,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 147,
+            "sourceAddress": "192.168.1.200:5971",
+            "sourceName": "MAPPINGPC (PB-VIDEO-7bf2978b-faf9-4e64-8c18-2b8e068b06e4-soak4)",
+            "timecodeRegressions": 0,
+            "observedFps": 29.233093651795077
+          },
+          {
+            "outputId": "soak5",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0270248,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 147,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 147,
+            "sourceAddress": "192.168.1.200:5972",
+            "sourceName": "MAPPINGPC (PB-VIDEO-7bf2978b-faf9-4e64-8c18-2b8e068b06e4-soak5)",
+            "timecodeRegressions": 0,
+            "observedFps": 29.241948438368553
+          }
+        ],
+        "telemetry": {
+          "black": false,
+          "elapsedSeconds": 28.8745069,
+          "event": "status",
+          "outputs": [
+            {
+              "connections": 0,
+              "outputId": "soak1",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.5292000000000625,
+                "copy": 2940.2552,
+                "map": 4.800199999999999,
+                "poll": 7.929799999999994
+              },
+              "sentFrames": 834,
+              "submittedFrames": 837,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak2",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.6428000000000753,
+                "copy": 3242.938099999998,
+                "map": 3.4273000000000025,
+                "poll": 3.483099999999997
+              },
+              "sentFrames": 834,
+              "submittedFrames": 837,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak3",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.7092000000000738,
+                "copy": 3539.744100000002,
+                "map": 5.352999999999996,
+                "poll": 4.047599999999999
+              },
+              "sentFrames": 834,
+              "submittedFrames": 837,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak4",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.140400000000062,
+                "copy": 3640.7558999999983,
+                "map": 4.2638000000000025,
+                "poll": 4.969600000000002
+              },
+              "sentFrames": 834,
+              "submittedFrames": 837,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak5",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 3.810300000000068,
+                "copy": 3801.1216999999997,
+                "map": 4.620900000000007,
+                "poll": 5.575599999999993
+              },
+              "sentFrames": 834,
+              "submittedFrames": 837,
+              "transportReplacedFrames": 0
+            }
+          ],
+          "physicalPresentationVerified": false,
+          "receivedFrames": 845,
+          "rejectedFrames": 0,
+          "sourceValid": true,
+          "ticks": 837,
+          "timingMs": {
+            "readback": 17239.056900000018,
+            "receive": 5.391499999999993,
+            "render": 1489.9763999999989,
+            "send": 57.75490000000008,
+            "upload": 2280.4147999999986
+          }
+        }
+      },
+      {
+        "index": 3,
+        "outputs": [
+          {
+            "outputId": "soak1",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0197904,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 147,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 147,
+            "sourceAddress": "192.168.1.200:5968",
+            "sourceName": "MAPPINGPC (PB-VIDEO-7bf2978b-faf9-4e64-8c18-2b8e068b06e4-soak1)",
+            "timecodeRegressions": 0,
+            "observedFps": 29.28409122420729
+          },
+          {
+            "outputId": "soak2",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0319109,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 147,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 147,
+            "sourceAddress": "192.168.1.200:5969",
+            "sourceName": "MAPPINGPC (PB-VIDEO-7bf2978b-faf9-4e64-8c18-2b8e068b06e4-soak2)",
+            "timecodeRegressions": 0,
+            "observedFps": 29.213553840947384
+          },
+          {
+            "outputId": "soak3",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0021217,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 146,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 146,
+            "sourceAddress": "192.168.1.200:5970",
+            "sourceName": "MAPPINGPC (PB-VIDEO-7bf2978b-faf9-4e64-8c18-2b8e068b06e4-soak3)",
+            "timecodeRegressions": 0,
+            "observedFps": 29.187614527651338
+          },
+          {
+            "outputId": "soak4",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0163532,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 147,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 147,
+            "sourceAddress": "192.168.1.200:5971",
+            "sourceName": "MAPPINGPC (PB-VIDEO-7bf2978b-faf9-4e64-8c18-2b8e068b06e4-soak4)",
+            "timecodeRegressions": 0,
+            "observedFps": 29.304156653084156
+          },
+          {
+            "outputId": "soak5",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 30,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0055387,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 146,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 146,
+            "sourceAddress": "192.168.1.200:5972",
+            "sourceName": "MAPPINGPC (PB-VIDEO-7bf2978b-faf9-4e64-8c18-2b8e068b06e4-soak5)",
+            "timecodeRegressions": 0,
+            "observedFps": 29.167689783319428
+          }
+        ],
+        "telemetry": {
+          "black": false,
+          "elapsedSeconds": 38.5495522,
+          "event": "status",
+          "outputs": [
+            {
+              "connections": 0,
+              "outputId": "soak1",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.621900000000082,
+                "copy": 3932.1622999999986,
+                "map": 6.399699999999997,
+                "poll": 12.157699999999988
+              },
+              "sentFrames": 1114,
+              "submittedFrames": 1117,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak2",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.715500000000099,
+                "copy": 4383.051499999995,
+                "map": 4.573900000000004,
+                "poll": 4.753300000000005
+              },
+              "sentFrames": 1114,
+              "submittedFrames": 1117,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak3",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.7707000000000983,
+                "copy": 4736.976000000002,
+                "map": 7.713699999999992,
+                "poll": 5.4684999999999935
+              },
+              "sentFrames": 1114,
+              "submittedFrames": 1117,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak4",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.1986000000000847,
+                "copy": 4933.6263,
+                "map": 5.9598,
+                "poll": 6.699400000000001
+              },
+              "sentFrames": 1114,
+              "submittedFrames": 1117,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak5",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 3.876800000000097,
+                "copy": 5086.037599999996,
+                "map": 7.0160000000000045,
+                "poll": 7.473399999999988
+              },
+              "sentFrames": 1114,
+              "submittedFrames": 1117,
+              "transportReplacedFrames": 0
+            }
+          ],
+          "physicalPresentationVerified": false,
+          "receivedFrames": 1128,
+          "rejectedFrames": 0,
+          "sourceValid": true,
+          "ticks": 1117,
+          "timingMs": {
+            "readback": 23170.350299999976,
+            "receive": 7.707899999999986,
+            "render": 2012.7391000000018,
+            "send": 81.45670000000014,
+            "upload": 3045.293999999998
+          }
+        }
+      }
+    ],
+    "cleanup": {
+      "video": {
+        "blackSubmitted": true,
+        "contentRestored": false,
+        "event": "stopped",
+        "physicalBlackVerified": false
+      },
+      "input": {
+        "blackSubmitted": true,
+        "contentRestored": false,
+        "event": "stopped",
+        "physicalBlackVerified": false
+      }
+    },
+    "adapter": "NVIDIA RTX A400",
+    "passed30Fps": true,
+    "passed60Fps": false
+  },
+  "after60": {
+    "schema": "pb-five-output-soak-v1",
+    "width": 1920,
+    "height": 1200,
+    "outputs": 5,
+    "targetFps": 60,
+    "syntheticInputFps": 60,
+    "composition": "one synthetic 1920x1200 canvas repeated on five outputs",
+    "networkPath": "local-host-decode-only",
+    "physicalProjectorVerified": false,
+    "rounds": [
+      {
+        "index": 0,
+        "outputs": [
+          {
+            "outputId": "soak1",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 60,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0034291,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 166,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 166,
+            "sourceAddress": "192.168.1.200:5968",
+            "sourceName": "MAPPINGPC (PB-VIDEO-1f6a3b72-29e4-41df-bcd8-b2c4ea35e17d-soak1)",
+            "timecodeRegressions": 0,
+            "observedFps": 33.17724638088706
+          },
+          {
+            "outputId": "soak2",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 60,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0261546,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 167,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 167,
+            "sourceAddress": "192.168.1.200:5969",
+            "sourceName": "MAPPINGPC (PB-VIDEO-1f6a3b72-29e4-41df-bcd8-b2c4ea35e17d-soak2)",
+            "timecodeRegressions": 0,
+            "observedFps": 33.22619642459864
+          },
+          {
+            "outputId": "soak3",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 60,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0029403,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 166,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 166,
+            "sourceAddress": "192.168.1.200:5970",
+            "sourceName": "MAPPINGPC (PB-VIDEO-1f6a3b72-29e4-41df-bcd8-b2c4ea35e17d-soak3)",
+            "timecodeRegressions": 0,
+            "observedFps": 33.18048788229594
+          },
+          {
+            "outputId": "soak4",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 60,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0338178,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 167,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 167,
+            "sourceAddress": "192.168.1.200:5971",
+            "sourceName": "MAPPINGPC (PB-VIDEO-1f6a3b72-29e4-41df-bcd8-b2c4ea35e17d-soak4)",
+            "timecodeRegressions": 0,
+            "observedFps": 33.17561473917471
+          },
+          {
+            "outputId": "soak5",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 60,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0116463,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 166,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 166,
+            "sourceAddress": "192.168.1.200:5972",
+            "sourceName": "MAPPINGPC (PB-VIDEO-1f6a3b72-29e4-41df-bcd8-b2c4ea35e17d-soak5)",
+            "timecodeRegressions": 0,
+            "observedFps": 33.12284827442831
+          }
+        ],
+        "telemetry": {
+          "black": false,
+          "elapsedSeconds": 9.5468026,
+          "event": "status",
+          "outputs": [
+            {
+              "connections": 0,
+              "outputId": "soak1",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.0697000000000068,
+                "copy": 1390.052,
+                "map": 4.709399999999996,
+                "poll": 3.697300000000001
+              },
+              "sentFrames": 347,
+              "submittedFrames": 350,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak2",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.587800000000031,
+                "copy": 1418.4870999999994,
+                "map": 2.0980000000000008,
+                "poll": 2.2008
+              },
+              "sentFrames": 347,
+              "submittedFrames": 350,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak3",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 1.9560999999999953,
+                "copy": 1470.4639000000002,
+                "map": 1.5268000000000004,
+                "poll": 1.9114999999999989
+              },
+              "sentFrames": 347,
+              "submittedFrames": 350,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak4",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 5.447399999999994,
+                "copy": 1516.8450000000007,
+                "map": 1.7931999999999997,
+                "poll": 2.0343999999999993
+              },
+              "sentFrames": 347,
+              "submittedFrames": 350,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak5",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 3.006100000000034,
+                "copy": 1559.3125999999993,
+                "map": 1.8574999999999993,
+                "poll": 2.0955000000000017
+              },
+              "sentFrames": 347,
+              "submittedFrames": 350,
+              "transportReplacedFrames": 0
+            }
+          ],
+          "physicalPresentationVerified": false,
+          "receivedFrames": 535,
+          "rejectedFrames": 0,
+          "sourceValid": true,
+          "ticks": 350,
+          "timingMs": {
+            "readback": 7399.919099999992,
+            "receive": 3.0653999999999986,
+            "render": 711.7690000000007,
+            "send": 25.05569999999998,
+            "upload": 1351.0372
+          }
+        }
+      },
+      {
+        "index": 1,
+        "outputs": [
+          {
+            "outputId": "soak1",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 60,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0081657,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 168,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 168,
+            "sourceAddress": "192.168.1.200:5968",
+            "sourceName": "MAPPINGPC (PB-VIDEO-1f6a3b72-29e4-41df-bcd8-b2c4ea35e17d-soak1)",
+            "timecodeRegressions": 0,
+            "observedFps": 33.54521596599729
+          },
+          {
+            "outputId": "soak2",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 60,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0059614,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 168,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 168,
+            "sourceAddress": "192.168.1.200:5969",
+            "sourceName": "MAPPINGPC (PB-VIDEO-1f6a3b72-29e4-41df-bcd8-b2c4ea35e17d-soak2)",
+            "timecodeRegressions": 0,
+            "observedFps": 33.5599870985821
+          },
+          {
+            "outputId": "soak3",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 60,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0248141,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 169,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 169,
+            "sourceAddress": "192.168.1.200:5970",
+            "sourceName": "MAPPINGPC (PB-VIDEO-1f6a3b72-29e4-41df-bcd8-b2c4ea35e17d-soak3)",
+            "timecodeRegressions": 0,
+            "observedFps": 33.63308505283807
+          },
+          {
+            "outputId": "soak4",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 60,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0021404,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 168,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 168,
+            "sourceAddress": "192.168.1.200:5971",
+            "sourceName": "MAPPINGPC (PB-VIDEO-1f6a3b72-29e4-41df-bcd8-b2c4ea35e17d-soak4)",
+            "timecodeRegressions": 0,
+            "observedFps": 33.58562266664886
+          },
+          {
+            "outputId": "soak5",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 60,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0283668,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 169,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 169,
+            "sourceAddress": "192.168.1.200:5972",
+            "sourceName": "MAPPINGPC (PB-VIDEO-1f6a3b72-29e4-41df-bcd8-b2c4ea35e17d-soak5)",
+            "timecodeRegressions": 0,
+            "observedFps": 33.60932221571426
+          }
+        ],
+        "telemetry": {
+          "black": false,
+          "elapsedSeconds": 19.192626,
+          "event": "status",
+          "outputs": [
+            {
+              "connections": 0,
+              "outputId": "soak1",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.2002000000000304,
+                "copy": 2875.791699999997,
+                "map": 8.254100000000003,
+                "poll": 8.3739
+              },
+              "sentFrames": 685,
+              "submittedFrames": 688,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak2",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.657400000000059,
+                "copy": 2830.9686999999994,
+                "map": 3.8056999999999954,
+                "poll": 5.789999999999996
+              },
+              "sentFrames": 685,
+              "submittedFrames": 688,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak3",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.0214999999999974,
+                "copy": 2962.234,
+                "map": 3.0225999999999997,
+                "poll": 4.7782999999999936
+              },
+              "sentFrames": 685,
+              "submittedFrames": 688,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak4",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 5.514099999999988,
+                "copy": 3041.8640999999984,
+                "map": 3.4858999999999973,
+                "poll": 4.199100000000002
+              },
+              "sentFrames": 685,
+              "submittedFrames": 688,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak5",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 3.073400000000062,
+                "copy": 3178.401499999994,
+                "map": 3.5783999999999985,
+                "poll": 4.0378000000000025
+              },
+              "sentFrames": 685,
+              "submittedFrames": 688,
+              "transportReplacedFrames": 0
+            }
+          ],
+          "physicalPresentationVerified": false,
+          "receivedFrames": 1078,
+          "rejectedFrames": 0,
+          "sourceValid": true,
+          "ticks": 688,
+          "timingMs": {
+            "readback": 14969.103799999952,
+            "receive": 4.6140999999999925,
+            "render": 1346.0894999999991,
+            "send": 52.967599999999855,
+            "upload": 2727.4267999999997
+          }
+        }
+      },
+      {
+        "index": 2,
+        "outputs": [
+          {
+            "outputId": "soak1",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 60,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0106205,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 164,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 164,
+            "sourceAddress": "192.168.1.200:5968",
+            "sourceName": "MAPPINGPC (PB-VIDEO-1f6a3b72-29e4-41df-bcd8-b2c4ea35e17d-soak1)",
+            "timecodeRegressions": 0,
+            "observedFps": 32.73047719339351
+          },
+          {
+            "outputId": "soak2",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 60,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0118717,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 164,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 164,
+            "sourceAddress": "192.168.1.200:5969",
+            "sourceName": "MAPPINGPC (PB-VIDEO-1f6a3b72-29e4-41df-bcd8-b2c4ea35e17d-soak2)",
+            "timecodeRegressions": 0,
+            "observedFps": 32.72230611968778
+          },
+          {
+            "outputId": "soak3",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 60,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0283862,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 164,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 164,
+            "sourceAddress": "192.168.1.200:5970",
+            "sourceName": "MAPPINGPC (PB-VIDEO-1f6a3b72-29e4-41df-bcd8-b2c4ea35e17d-soak3)",
+            "timecodeRegressions": 0,
+            "observedFps": 32.614837738596925
+          },
+          {
+            "outputId": "soak4",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 60,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0010545,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 164,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 164,
+            "sourceAddress": "192.168.1.200:5971",
+            "sourceName": "MAPPINGPC (PB-VIDEO-1f6a3b72-29e4-41df-bcd8-b2c4ea35e17d-soak4)",
+            "timecodeRegressions": 0,
+            "observedFps": 32.79308393859735
+          },
+          {
+            "outputId": "soak5",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 60,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0020147,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 164,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 164,
+            "sourceAddress": "192.168.1.200:5972",
+            "sourceName": "MAPPINGPC (PB-VIDEO-1f6a3b72-29e4-41df-bcd8-b2c4ea35e17d-soak5)",
+            "timecodeRegressions": 0,
+            "observedFps": 32.78678889128415
+          }
+        ],
+        "telemetry": {
+          "black": false,
+          "elapsedSeconds": 28.6746253,
+          "event": "status",
+          "outputs": [
+            {
+              "connections": 0,
+              "outputId": "soak1",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.3738000000000574,
+                "copy": 4304.8454999999985,
+                "map": 10.909699999999999,
+                "poll": 12.10289999999998
+              },
+              "sentFrames": 1013,
+              "submittedFrames": 1016,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak2",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.7259000000000895,
+                "copy": 4287.1637999999975,
+                "map": 5.870699999999988,
+                "poll": 7.589099999999986
+              },
+              "sentFrames": 1013,
+              "submittedFrames": 1016,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak3",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.0825000000000284,
+                "copy": 4443.175300000005,
+                "map": 4.579900000000003,
+                "poll": 6.435699999999983
+              },
+              "sentFrames": 1013,
+              "submittedFrames": 1016,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak4",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 5.581599999999979,
+                "copy": 4546.729400000005,
+                "map": 5.349599999999998,
+                "poll": 6.210899999999995
+              },
+              "sentFrames": 1013,
+              "submittedFrames": 1016,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak5",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 3.1378000000000914,
+                "copy": 4702.266399999997,
+                "map": 5.262099999999996,
+                "poll": 6.212299999999999
+              },
+              "sentFrames": 1013,
+              "submittedFrames": 1016,
+              "transportReplacedFrames": 0
+            }
+          ],
+          "physicalPresentationVerified": false,
+          "receivedFrames": 1610,
+          "rejectedFrames": 0,
+          "sourceValid": true,
+          "ticks": 1016,
+          "timingMs": {
+            "readback": 22391.119000000017,
+            "receive": 7.505299999999988,
+            "render": 1975.629799999999,
+            "send": 81.13429999999995,
+            "upload": 4094.624300000001
+          }
+        }
+      },
+      {
+        "index": 3,
+        "outputs": [
+          {
+            "outputId": "soak1",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 60,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0066538,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 164,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 164,
+            "sourceAddress": "192.168.1.200:5968",
+            "sourceName": "MAPPINGPC (PB-VIDEO-1f6a3b72-29e4-41df-bcd8-b2c4ea35e17d-soak1)",
+            "timecodeRegressions": 0,
+            "observedFps": 32.7564090810513
+          },
+          {
+            "outputId": "soak2",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 60,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.01842,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 164,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 164,
+            "sourceAddress": "192.168.1.200:5969",
+            "sourceName": "MAPPINGPC (PB-VIDEO-1f6a3b72-29e4-41df-bcd8-b2c4ea35e17d-soak2)",
+            "timecodeRegressions": 0,
+            "observedFps": 32.67960832293829
+          },
+          {
+            "outputId": "soak3",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 60,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0175334,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 164,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 164,
+            "sourceAddress": "192.168.1.200:5970",
+            "sourceName": "MAPPINGPC (PB-VIDEO-1f6a3b72-29e4-41df-bcd8-b2c4ea35e17d-soak3)",
+            "timecodeRegressions": 0,
+            "observedFps": 32.685382821766574
+          },
+          {
+            "outputId": "soak4",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 60,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0280325,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 165,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 165,
+            "sourceAddress": "192.168.1.200:5971",
+            "sourceName": "MAPPINGPC (PB-VIDEO-1f6a3b72-29e4-41df-bcd8-b2c4ea35e17d-soak4)",
+            "timecodeRegressions": 0,
+            "observedFps": 32.816017000685655
+          },
+          {
+            "outputId": "soak5",
+            "formats": [
+              {
+                "fourCC": 1094862674,
+                "fpsDenominator": 1,
+                "fpsNumerator": 60,
+                "height": 1200,
+                "width": 1920
+              }
+            ],
+            "lastSampledMeanRgb8": 175,
+            "observedSeconds": 5.0315559,
+            "physicalProjectorVerified": false,
+            "receivedFrames": 165,
+            "sdkDroppedVideoFrames": 0,
+            "sdkReceivedVideoFrames": 165,
+            "sourceAddress": "192.168.1.200:5972",
+            "sourceName": "MAPPINGPC (PB-VIDEO-1f6a3b72-29e4-41df-bcd8-b2c4ea35e17d-soak5)",
+            "timecodeRegressions": 0,
+            "observedFps": 32.793037239236476
+          }
+        ],
+        "telemetry": {
+          "black": false,
+          "elapsedSeconds": 38.1989543,
+          "event": "status",
+          "outputs": [
+            {
+              "connections": 0,
+              "outputId": "soak1",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.491300000000081,
+                "copy": 5802.080300000006,
+                "map": 14.86589999999999,
+                "poll": 15.885999999999981
+              },
+              "sentFrames": 1341,
+              "submittedFrames": 1344,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak2",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.793900000000123,
+                "copy": 5712.702199999999,
+                "map": 8.327399999999988,
+                "poll": 10.154899999999971
+              },
+              "sentFrames": 1341,
+              "submittedFrames": 1344,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak3",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 2.1586000000000594,
+                "copy": 5951.95980000001,
+                "map": 6.407699999999997,
+                "poll": 8.169299999999987
+              },
+              "sentFrames": 1341,
+              "submittedFrames": 1344,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak4",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 5.650499999999972,
+                "copy": 6054.915400000001,
+                "map": 7.14989999999999,
+                "poll": 8.226299999999998
+              },
+              "sentFrames": 1341,
+              "submittedFrames": 1344,
+              "transportReplacedFrames": 0
+            },
+            {
+              "connections": 0,
+              "outputId": "soak5",
+              "readbackBackpressure": 0,
+              "readbackTimingMs": {
+                "allocation": 3.1961000000001216,
+                "copy": 6236.249299999997,
+                "map": 6.959099999999984,
+                "poll": 8.0912
+              },
+              "sentFrames": 1341,
+              "submittedFrames": 1344,
+              "transportReplacedFrames": 0
+            }
+          ],
+          "physicalPresentationVerified": false,
+          "receivedFrames": 2145,
+          "rejectedFrames": 0,
+          "sourceValid": true,
+          "ticks": 1344,
+          "timingMs": {
+            "readback": 29894.140099999993,
+            "receive": 10.596799999999982,
+            "render": 2589.7631999999935,
+            "send": 109.82540000000007,
+            "upload": 5435.579400000001
+          }
+        }
+      }
+    ],
+    "cleanup": {
+      "video": {
+        "blackSubmitted": true,
+        "contentRestored": false,
+        "event": "stopped",
+        "physicalBlackVerified": false
+      },
+      "input": {
+        "blackSubmitted": true,
+        "contentRestored": false,
+        "event": "stopped",
+        "physicalBlackVerified": false
+      }
+    },
+    "adapter": "NVIDIA RTX A400",
+    "passedTargetFps": false,
+    "passed30Fps": false,
+    "passed60Fps": false
+  }
+}

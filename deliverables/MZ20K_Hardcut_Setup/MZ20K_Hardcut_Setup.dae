@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset><contributor><authoring_tool>Codex MZ20K Hardcut Layout Generator</authoring_tool></contributor><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset>
+  <library_effects>
+  <effect id="fx_ground"><profile_COMMON><technique sid="common"><lambert><diffuse><color>0.18 0.2 0.22 1</color></diffuse><transparency><float>1</float></transparency></lambert></technique></profile_COMMON></effect>
+  <effect id="fx_facade"><profile_COMMON><technique sid="common"><lambert><diffuse><color>0.72 0.61 0.47 1</color></diffuse><transparency><float>1</float></transparency></lambert></technique></profile_COMMON></effect>
+  <effect id="fx_groove"><profile_COMMON><technique sid="common"><lambert><diffuse><color>0.2 0.14 0.1 1</color></diffuse><transparency><float>1</float></transparency></lambert></technique></profile_COMMON></effect>
+  <effect id="fx_pj"><profile_COMMON><technique sid="common"><lambert><diffuse><color>0.07 0.08 0.1 1</color></diffuse><transparency><float>1</float></transparency></lambert></technique></profile_COMMON></effect>
+  <effect id="fx_tower"><profile_COMMON><technique sid="common"><lambert><diffuse><color>0.38 0.42 0.46 1</color></diffuse><transparency><float>1</float></transparency></lambert></technique></profile_COMMON></effect>
+  <effect id="fx_left"><profile_COMMON><technique sid="common"><lambert><diffuse><color>0.12 0.55 1 0.25</color></diffuse><transparency><float>0.25</float></transparency></lambert></technique></profile_COMMON></effect>
+  <effect id="fx_right"><profile_COMMON><technique sid="common"><lambert><diffuse><color>1 0.28 0.12 0.25</color></diffuse><transparency><float>0.25</float></transparency></lambert></technique></profile_COMMON></effect>
+  <effect id="fx_leftPatch"><profile_COMMON><technique sid="common"><lambert><diffuse><color>0.12 0.55 1 0.55</color></diffuse><transparency><float>0.55</float></transparency></lambert></technique></profile_COMMON></effect>
+  <effect id="fx_rightPatch"><profile_COMMON><technique sid="common"><lambert><diffuse><color>1 0.28 0.12 0.55</color></diffuse><transparency><float>0.55</float></transparency></lambert></technique></profile_COMMON></effect>
+  <effect id="fx_cut"><profile_COMMON><technique sid="common"><lambert><diffuse><color>1 0.92 0.12 1</color></diffuse><transparency><float>1</float></transparency></lambert></technique></profile_COMMON></effect></library_effects>
+  <library_materials><material id="mat_ground" name="ground"><instance_effect url="#fx_ground"/></material><material id="mat_facade" name="facade"><instance_effect url="#fx_facade"/></material><material id="mat_groove" name="groove"><instance_effect url="#fx_groove"/></material><material id="mat_pj" name="pj"><instance_effect url="#fx_pj"/></material><material id="mat_tower" name="tower"><instance_effect url="#fx_tower"/></material><material id="mat_left" name="left"><instance_effect url="#fx_left"/></material><material id="mat_right" name="right"><instance_effect url="#fx_right"/></material><material id="mat_leftPatch" name="leftPatch"><instance_effect url="#fx_leftPatch"/></material><material id="mat_rightPatch" name="rightPatch"><instance_effect url="#fx_rightPatch"/></material><material id="mat_cut" name="cut"><instance_effect url="#fx_cut"/></material></library_materials>
+  <library_geometries>
+    <geometry id="geom_0" name="Ground">
+      <mesh>
+        <source id="geom_0_positions">
+          <float_array id="geom_0_positions_array" count="24">-2 -22 -0.12 16.4 -22 -0.12 16.4 2 -0.12 -2 2 -0.12 -2 -22 0 16.4 -22 0 16.4 2 0 -2 2 0</float_array>
+          <technique_common><accessor source="#geom_0_positions_array" count="8" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_0_vertices"><input semantic="POSITION" source="#geom_0_positions"/></vertices>
+        <triangles material="ground" count="12"><input semantic="VERTEX" source="#geom_0_vertices" offset="0"/><p>0 2 1 0 3 2 4 5 6 4 6 7 0 1 5 0 5 4 1 2 6 1 6 5 2 3 7 2 7 6 3 0 4 3 4 7</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_1" name="Facade_Bay_1">
+      <mesh>
+        <source id="geom_1_positions">
+          <float_array id="geom_1_positions_array" count="24">0 -0.28 0 2.62 -0.28 0 2.62 0 0 0 0 0 0 -0.28 13.4 2.62 -0.28 13.4 2.62 0 13.4 0 0 13.4</float_array>
+          <technique_common><accessor source="#geom_1_positions_array" count="8" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_1_vertices"><input semantic="POSITION" source="#geom_1_positions"/></vertices>
+        <triangles material="facade" count="12"><input semantic="VERTEX" source="#geom_1_vertices" offset="0"/><p>0 2 1 0 3 2 4 5 6 4 6 7 0 1 5 0 5 4 1 2 6 1 6 5 2 3 7 2 7 6 3 0 4 3 4 7</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_2" name="Facade_Bay_2">
+      <mesh>
+        <source id="geom_2_positions">
+          <float_array id="geom_2_positions_array" count="24">2.62 -0.52 0 4.62 -0.52 0 4.62 0 0 2.62 0 0 2.62 -0.52 13.4 4.62 -0.52 13.4 4.62 0 13.4 2.62 0 13.4</float_array>
+          <technique_common><accessor source="#geom_2_positions_array" count="8" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_2_vertices"><input semantic="POSITION" source="#geom_2_positions"/></vertices>
+        <triangles material="facade" count="12"><input semantic="VERTEX" source="#geom_2_vertices" offset="0"/><p>0 2 1 0 3 2 4 5 6 4 6 7 0 1 5 0 5 4 1 2 6 1 6 5 2 3 7 2 7 6 3 0 4 3 4 7</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_3" name="Groove_1">
+      <mesh>
+        <source id="geom_3_positions">
+          <float_array id="geom_3_positions_array" count="24">2.585 -0.62 0 2.6550000000000002 -0.62 0 2.6550000000000002 -0.01 0 2.585 -0.01 0 2.585 -0.62 13.4 2.6550000000000002 -0.62 13.4 2.6550000000000002 -0.01 13.4 2.585 -0.01 13.4</float_array>
+          <technique_common><accessor source="#geom_3_positions_array" count="8" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_3_vertices"><input semantic="POSITION" source="#geom_3_positions"/></vertices>
+        <triangles material="groove" count="12"><input semantic="VERTEX" source="#geom_3_vertices" offset="0"/><p>0 2 1 0 3 2 4 5 6 4 6 7 0 1 5 0 5 4 1 2 6 1 6 5 2 3 7 2 7 6 3 0 4 3 4 7</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_4" name="Facade_Bay_3">
+      <mesh>
+        <source id="geom_4_positions">
+          <float_array id="geom_4_positions_array" count="24">4.62 -0.34 0 6.62 -0.34 0 6.62 0 0 4.62 0 0 4.62 -0.34 13.4 6.62 -0.34 13.4 6.62 0 13.4 4.62 0 13.4</float_array>
+          <technique_common><accessor source="#geom_4_positions_array" count="8" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_4_vertices"><input semantic="POSITION" source="#geom_4_positions"/></vertices>
+        <triangles material="facade" count="12"><input semantic="VERTEX" source="#geom_4_vertices" offset="0"/><p>0 2 1 0 3 2 4 5 6 4 6 7 0 1 5 0 5 4 1 2 6 1 6 5 2 3 7 2 7 6 3 0 4 3 4 7</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_5" name="Groove_2">
+      <mesh>
+        <source id="geom_5_positions">
+          <float_array id="geom_5_positions_array" count="24">4.585 -0.62 0 4.655 -0.62 0 4.655 -0.01 0 4.585 -0.01 0 4.585 -0.62 13.4 4.655 -0.62 13.4 4.655 -0.01 13.4 4.585 -0.01 13.4</float_array>
+          <technique_common><accessor source="#geom_5_positions_array" count="8" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_5_vertices"><input semantic="POSITION" source="#geom_5_positions"/></vertices>
+        <triangles material="groove" count="12"><input semantic="VERTEX" source="#geom_5_vertices" offset="0"/><p>0 2 1 0 3 2 4 5 6 4 6 7 0 1 5 0 5 4 1 2 6 1 6 5 2 3 7 2 7 6 3 0 4 3 4 7</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_6" name="Facade_Bay_4">
+      <mesh>
+        <source id="geom_6_positions">
+          <float_array id="geom_6_positions_array" count="24">6.62 -0.58 0 8.32 -0.58 0 8.32 0 0 6.62 0 0 6.62 -0.58 13.4 8.32 -0.58 13.4 8.32 0 13.4 6.62 0 13.4</float_array>
+          <technique_common><accessor source="#geom_6_positions_array" count="8" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_6_vertices"><input semantic="POSITION" source="#geom_6_positions"/></vertices>
+        <triangles material="facade" count="12"><input semantic="VERTEX" source="#geom_6_vertices" offset="0"/><p>0 2 1 0 3 2 4 5 6 4 6 7 0 1 5 0 5 4 1 2 6 1 6 5 2 3 7 2 7 6 3 0 4 3 4 7</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_7" name="Groove_3">
+      <mesh>
+        <source id="geom_7_positions">
+          <float_array id="geom_7_positions_array" count="24">6.585 -0.62 0 6.655 -0.62 0 6.655 -0.01 0 6.585 -0.01 0 6.585 -0.62 13.4 6.655 -0.62 13.4 6.655 -0.01 13.4 6.585 -0.01 13.4</float_array>
+          <technique_common><accessor source="#geom_7_positions_array" count="8" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_7_vertices"><input semantic="POSITION" source="#geom_7_positions"/></vertices>
+        <triangles material="groove" count="12"><input semantic="VERTEX" source="#geom_7_vertices" offset="0"/><p>0 2 1 0 3 2 4 5 6 4 6 7 0 1 5 0 5 4 1 2 6 1 6 5 2 3 7 2 7 6 3 0 4 3 4 7</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_8" name="Facade_Bay_5">
+      <mesh>
+        <source id="geom_8_positions">
+          <float_array id="geom_8_positions_array" count="24">8.32 -0.3 0 11.17 -0.3 0 11.17 0 0 8.32 0 0 8.32 -0.3 13.4 11.17 -0.3 13.4 11.17 0 13.4 8.32 0 13.4</float_array>
+          <technique_common><accessor source="#geom_8_positions_array" count="8" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_8_vertices"><input semantic="POSITION" source="#geom_8_positions"/></vertices>
+        <triangles material="facade" count="12"><input semantic="VERTEX" source="#geom_8_vertices" offset="0"/><p>0 2 1 0 3 2 4 5 6 4 6 7 0 1 5 0 5 4 1 2 6 1 6 5 2 3 7 2 7 6 3 0 4 3 4 7</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_9" name="Groove_4">
+      <mesh>
+        <source id="geom_9_positions">
+          <float_array id="geom_9_positions_array" count="24">8.285 -0.62 0 8.355 -0.62 0 8.355 -0.01 0 8.285 -0.01 0 8.285 -0.62 13.4 8.355 -0.62 13.4 8.355 -0.01 13.4 8.285 -0.01 13.4</float_array>
+          <technique_common><accessor source="#geom_9_positions_array" count="8" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_9_vertices"><input semantic="POSITION" source="#geom_9_positions"/></vertices>
+        <triangles material="groove" count="12"><input semantic="VERTEX" source="#geom_9_vertices" offset="0"/><p>0 2 1 0 3 2 4 5 6 4 6 7 0 1 5 0 5 4 1 2 6 1 6 5 2 3 7 2 7 6 3 0 4 3 4 7</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_10" name="Facade_Bay_6">
+      <mesh>
+        <source id="geom_10_positions">
+          <float_array id="geom_10_positions_array" count="24">11.17 -0.5 0 13.12 -0.5 0 13.12 0 0 11.17 0 0 11.17 -0.5 13.4 13.12 -0.5 13.4 13.12 0 13.4 11.17 0 13.4</float_array>
+          <technique_common><accessor source="#geom_10_positions_array" count="8" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_10_vertices"><input semantic="POSITION" source="#geom_10_positions"/></vertices>
+        <triangles material="facade" count="12"><input semantic="VERTEX" source="#geom_10_vertices" offset="0"/><p>0 2 1 0 3 2 4 5 6 4 6 7 0 1 5 0 5 4 1 2 6 1 6 5 2 3 7 2 7 6 3 0 4 3 4 7</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_11" name="Groove_5">
+      <mesh>
+        <source id="geom_11_positions">
+          <float_array id="geom_11_positions_array" count="24">11.135 -0.62 0 11.205 -0.62 0 11.205 -0.01 0 11.135 -0.01 0 11.135 -0.62 13.4 11.205 -0.62 13.4 11.205 -0.01 13.4 11.135 -0.01 13.4</float_array>
+          <technique_common><accessor source="#geom_11_positions_array" count="8" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_11_vertices"><input semantic="POSITION" source="#geom_11_positions"/></vertices>
+        <triangles material="groove" count="12"><input semantic="VERTEX" source="#geom_11_vertices" offset="0"/><p>0 2 1 0 3 2 4 5 6 4 6 7 0 1 5 0 5 4 1 2 6 1 6 5 2 3 7 2 7 6 3 0 4 3 4 7</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_12" name="Facade_Bay_7">
+      <mesh>
+        <source id="geom_12_positions">
+          <float_array id="geom_12_positions_array" count="24">13.12 -0.26 0 14.4 -0.26 0 14.4 0 0 13.12 0 0 13.12 -0.26 13.4 14.4 -0.26 13.4 14.4 0 13.4 13.12 0 13.4</float_array>
+          <technique_common><accessor source="#geom_12_positions_array" count="8" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_12_vertices"><input semantic="POSITION" source="#geom_12_positions"/></vertices>
+        <triangles material="facade" count="12"><input semantic="VERTEX" source="#geom_12_vertices" offset="0"/><p>0 2 1 0 3 2 4 5 6 4 6 7 0 1 5 0 5 4 1 2 6 1 6 5 2 3 7 2 7 6 3 0 4 3 4 7</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_13" name="Groove_6">
+      <mesh>
+        <source id="geom_13_positions">
+          <float_array id="geom_13_positions_array" count="24">13.084999999999999 -0.62 0 13.155 -0.62 0 13.155 -0.01 0 13.084999999999999 -0.01 0 13.084999999999999 -0.62 13.4 13.155 -0.62 13.4 13.155 -0.01 13.4 13.084999999999999 -0.01 13.4</float_array>
+          <technique_common><accessor source="#geom_13_positions_array" count="8" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_13_vertices"><input semantic="POSITION" source="#geom_13_positions"/></vertices>
+        <triangles material="groove" count="12"><input semantic="VERTEX" source="#geom_13_vertices" offset="0"/><p>0 2 1 0 3 2 4 5 6 4 6 7 0 1 5 0 5 4 1 2 6 1 6 5 2 3 7 2 7 6 3 0 4 3 4 7</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_14" name="ACTIVE_LEFT_HARDCUT">
+      <mesh>
+        <source id="geom_14_positions">
+          <float_array id="geom_14_positions_array" count="12">0 -0.64 0 6.62 -0.64 0 6.62 -0.64 13.4 0 -0.64 13.4</float_array>
+          <technique_common><accessor source="#geom_14_positions_array" count="4" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_14_vertices"><input semantic="POSITION" source="#geom_14_positions"/></vertices>
+        <triangles material="leftPatch" count="2"><input semantic="VERTEX" source="#geom_14_vertices" offset="0"/><p>0 1 2 0 2 3</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_15" name="ACTIVE_RIGHT_HARDCUT">
+      <mesh>
+        <source id="geom_15_positions">
+          <float_array id="geom_15_positions_array" count="12">6.62 -0.65 0 14.4 -0.65 0 14.4 -0.65 13.4 6.62 -0.65 13.4</float_array>
+          <technique_common><accessor source="#geom_15_positions_array" count="4" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_15_vertices"><input semantic="POSITION" source="#geom_15_positions"/></vertices>
+        <triangles material="rightPatch" count="2"><input semantic="VERTEX" source="#geom_15_vertices" offset="0"/><p>0 1 2 0 2 3</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_16" name="HARDCUT_SEAM_GRID_16">
+      <mesh>
+        <source id="geom_16_positions">
+          <float_array id="geom_16_positions_array" count="24">6.575 -0.72 0 6.665 -0.72 0 6.665 -0.66 0 6.575 -0.66 0 6.575 -0.72 13.4 6.665 -0.72 13.4 6.665 -0.66 13.4 6.575 -0.66 13.4</float_array>
+          <technique_common><accessor source="#geom_16_positions_array" count="8" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_16_vertices"><input semantic="POSITION" source="#geom_16_positions"/></vertices>
+        <triangles material="cut" count="12"><input semantic="VERTEX" source="#geom_16_vertices" offset="0"/><p>0 2 1 0 3 2 4 5 6 4 6 7 0 1 5 0 5 4 1 2 6 1 6 5 2 3 7 2 7 6 3 0 4 3 4 7</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_17" name="PJ_L_Tower">
+      <mesh>
+        <source id="geom_17_positions">
+          <float_array id="geom_17_positions_array" count="24">2.76 -20.55 0 3.8600000000000003 -20.55 0 3.8600000000000003 -19.45 0 2.76 -19.45 0 2.76 -20.55 2.66 3.8600000000000003 -20.55 2.66 3.8600000000000003 -19.45 2.66 2.76 -19.45 2.66</float_array>
+          <technique_common><accessor source="#geom_17_positions_array" count="8" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_17_vertices"><input semantic="POSITION" source="#geom_17_positions"/></vertices>
+        <triangles material="tower" count="12"><input semantic="VERTEX" source="#geom_17_vertices" offset="0"/><p>0 2 1 0 3 2 4 5 6 4 6 7 0 1 5 0 5 4 1 2 6 1 6 5 2 3 7 2 7 6 3 0 4 3 4 7</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_18" name="PJ_L_MZ20K_Portrait">
+      <mesh>
+        <source id="geom_18_positions">
+          <float_array id="geom_18_positions_array" count="24">3.09 -20.325 2.675 3.5300000000000002 -20.325 2.675 3.5300000000000002 -19.675 2.675 3.09 -19.675 2.675 3.09 -20.325 2.886 3.5300000000000002 -20.325 2.886 3.5300000000000002 -19.675 2.886 3.09 -19.675 2.886</float_array>
+          <technique_common><accessor source="#geom_18_positions_array" count="8" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_18_vertices"><input semantic="POSITION" source="#geom_18_positions"/></vertices>
+        <triangles material="pj" count="12"><input semantic="VERTEX" source="#geom_18_vertices" offset="0"/><p>0 2 1 0 3 2 4 5 6 4 6 7 0 1 5 0 5 4 1 2 6 1 6 5 2 3 7 2 7 6 3 0 4 3 4 7</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_19" name="PJ_L_Full_Optical_Beam">
+      <mesh>
+        <source id="geom_19_positions">
+          <float_array id="geom_19_positions_array" count="15">3.31 -20 3 -0.8775 0 0 7.4975000000000005 0 0 7.4975000000000005 0 13.4 -0.8775 0 13.4</float_array>
+          <technique_common><accessor source="#geom_19_positions_array" count="5" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_19_vertices"><input semantic="POSITION" source="#geom_19_positions"/></vertices>
+        <triangles material="left" count="6"><input semantic="VERTEX" source="#geom_19_vertices" offset="0"/><p>0 1 2 0 2 3 0 3 4 0 4 1 1 4 3 1 3 2</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_20" name="PJ_R_Tower">
+      <mesh>
+        <source id="geom_20_positions">
+          <float_array id="geom_20_positions_array" count="24">9.959999999999999 -20.55 0 11.06 -20.55 0 11.06 -19.45 0 9.959999999999999 -19.45 0 9.959999999999999 -20.55 2.66 11.06 -20.55 2.66 11.06 -19.45 2.66 9.959999999999999 -19.45 2.66</float_array>
+          <technique_common><accessor source="#geom_20_positions_array" count="8" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_20_vertices"><input semantic="POSITION" source="#geom_20_positions"/></vertices>
+        <triangles material="tower" count="12"><input semantic="VERTEX" source="#geom_20_vertices" offset="0"/><p>0 2 1 0 3 2 4 5 6 4 6 7 0 1 5 0 5 4 1 2 6 1 6 5 2 3 7 2 7 6 3 0 4 3 4 7</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_21" name="PJ_R_MZ20K_Portrait">
+      <mesh>
+        <source id="geom_21_positions">
+          <float_array id="geom_21_positions_array" count="24">10.29 -20.325 2.675 10.73 -20.325 2.675 10.73 -19.675 2.675 10.29 -19.675 2.675 10.29 -20.325 2.886 10.73 -20.325 2.886 10.73 -19.675 2.886 10.29 -19.675 2.886</float_array>
+          <technique_common><accessor source="#geom_21_positions_array" count="8" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_21_vertices"><input semantic="POSITION" source="#geom_21_positions"/></vertices>
+        <triangles material="pj" count="12"><input semantic="VERTEX" source="#geom_21_vertices" offset="0"/><p>0 2 1 0 3 2 4 5 6 4 6 7 0 1 5 0 5 4 1 2 6 1 6 5 2 3 7 2 7 6 3 0 4 3 4 7</p></triangles>
+      </mesh>
+    </geometry>
+    <geometry id="geom_22" name="PJ_R_Full_Optical_Beam">
+      <mesh>
+        <source id="geom_22_positions">
+          <float_array id="geom_22_positions_array" count="15">10.51 -20 3 6.3225 0 0 14.6975 0 0 14.6975 0 13.4 6.3225 0 13.4</float_array>
+          <technique_common><accessor source="#geom_22_positions_array" count="5" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+        </source>
+        <vertices id="geom_22_vertices"><input semantic="POSITION" source="#geom_22_positions"/></vertices>
+        <triangles material="right" count="6"><input semantic="VERTEX" source="#geom_22_vertices" offset="0"/><p>0 1 2 0 2 3 0 3 4 0 4 1 1 4 3 1 3 2</p></triangles>
+      </mesh>
+    </geometry></library_geometries>
+  <library_visual_scenes><visual_scene id="Scene" name="MZ20K Hardcut Setup"><node id="node_geom_0" name="Ground"><translate>0 0 0</translate><instance_geometry url="#geom_0"><bind_material><technique_common><instance_material symbol="ground" target="#mat_ground"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_1" name="Facade_Bay_1"><translate>0 0 0</translate><instance_geometry url="#geom_1"><bind_material><technique_common><instance_material symbol="facade" target="#mat_facade"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_2" name="Facade_Bay_2"><translate>0 0 0</translate><instance_geometry url="#geom_2"><bind_material><technique_common><instance_material symbol="facade" target="#mat_facade"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_3" name="Groove_1"><translate>0 0 0</translate><instance_geometry url="#geom_3"><bind_material><technique_common><instance_material symbol="groove" target="#mat_groove"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_4" name="Facade_Bay_3"><translate>0 0 0</translate><instance_geometry url="#geom_4"><bind_material><technique_common><instance_material symbol="facade" target="#mat_facade"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_5" name="Groove_2"><translate>0 0 0</translate><instance_geometry url="#geom_5"><bind_material><technique_common><instance_material symbol="groove" target="#mat_groove"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_6" name="Facade_Bay_4"><translate>0 0 0</translate><instance_geometry url="#geom_6"><bind_material><technique_common><instance_material symbol="facade" target="#mat_facade"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_7" name="Groove_3"><translate>0 0 0</translate><instance_geometry url="#geom_7"><bind_material><technique_common><instance_material symbol="groove" target="#mat_groove"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_8" name="Facade_Bay_5"><translate>0 0 0</translate><instance_geometry url="#geom_8"><bind_material><technique_common><instance_material symbol="facade" target="#mat_facade"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_9" name="Groove_4"><translate>0 0 0</translate><instance_geometry url="#geom_9"><bind_material><technique_common><instance_material symbol="groove" target="#mat_groove"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_10" name="Facade_Bay_6"><translate>0 0 0</translate><instance_geometry url="#geom_10"><bind_material><technique_common><instance_material symbol="facade" target="#mat_facade"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_11" name="Groove_5"><translate>0 0 0</translate><instance_geometry url="#geom_11"><bind_material><technique_common><instance_material symbol="groove" target="#mat_groove"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_12" name="Facade_Bay_7"><translate>0 0 0</translate><instance_geometry url="#geom_12"><bind_material><technique_common><instance_material symbol="facade" target="#mat_facade"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_13" name="Groove_6"><translate>0 0 0</translate><instance_geometry url="#geom_13"><bind_material><technique_common><instance_material symbol="groove" target="#mat_groove"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_14" name="ACTIVE_LEFT_HARDCUT"><translate>0 0 0</translate><instance_geometry url="#geom_14"><bind_material><technique_common><instance_material symbol="leftPatch" target="#mat_leftPatch"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_15" name="ACTIVE_RIGHT_HARDCUT"><translate>0 0 0</translate><instance_geometry url="#geom_15"><bind_material><technique_common><instance_material symbol="rightPatch" target="#mat_rightPatch"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_16" name="HARDCUT_SEAM_GRID_16"><translate>0 0 0</translate><instance_geometry url="#geom_16"><bind_material><technique_common><instance_material symbol="cut" target="#mat_cut"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_17" name="PJ_L_Tower"><translate>0 0 0</translate><instance_geometry url="#geom_17"><bind_material><technique_common><instance_material symbol="tower" target="#mat_tower"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_18" name="PJ_L_MZ20K_Portrait"><translate>0 0 0</translate><instance_geometry url="#geom_18"><bind_material><technique_common><instance_material symbol="pj" target="#mat_pj"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_19" name="PJ_L_Full_Optical_Beam"><translate>0 0 0</translate><instance_geometry url="#geom_19"><bind_material><technique_common><instance_material symbol="left" target="#mat_left"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_20" name="PJ_R_Tower"><translate>0 0 0</translate><instance_geometry url="#geom_20"><bind_material><technique_common><instance_material symbol="tower" target="#mat_tower"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_21" name="PJ_R_MZ20K_Portrait"><translate>0 0 0</translate><instance_geometry url="#geom_21"><bind_material><technique_common><instance_material symbol="pj" target="#mat_pj"/></technique_common></bind_material></instance_geometry></node><node id="node_geom_22" name="PJ_R_Full_Optical_Beam"><translate>0 0 0</translate><instance_geometry url="#geom_22"><bind_material><technique_common><instance_material symbol="right" target="#mat_right"/></technique_common></bind_material></instance_geometry></node></visual_scene></library_visual_scenes>
+  <scene><instance_visual_scene url="#Scene"/></scene>
+</COLLADA>

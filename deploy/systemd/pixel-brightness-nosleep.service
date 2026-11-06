@@ -1,0 +1,21 @@
+[Unit]
+Description=Keep the Pixel Brightness appliance awake
+Documentation=man:systemd-inhibit(1)
+After=systemd-logind.service
+ConditionPathExists=/etc/pixel-brightness/appliance-mode
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/systemd-inhibit --what=sleep:idle:handle-suspend-key:handle-hibernate-key:handle-lid-switch --who=Pixel-Brightness --why=Projection-playback-must-remain-awake --mode=block /usr/bin/sleep infinity
+Restart=always
+RestartSec=1
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,33 @@
+[Unit]
+Description=Pixel Brightness V2 Ubuntu Render Node
+After=network-online.target systemd-udev-settle.service
+Wants=network-online.target systemd-udev-settle.service
+
+[Service]
+Type=simple
+User=pixelbrightness
+Group=pixelbrightness
+SupplementaryGroups=video render
+WorkingDirectory=/opt/pixel-brightness/current
+EnvironmentFile=-/etc/pixel-brightness/node.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /opt/pixel-brightness/current/runtime/node/index.mjs
+Restart=always
+RestartSec=2
+TimeoutStopSec=15
+KillSignal=SIGTERM
+LimitNOFILE=65536
+LimitMEMLOCK=infinity
+OOMScoreAdjust=-500
+UMask=0027
+# The Node may sudo exactly one root-owned allowlisted helper. All other
+# privilege escalation remains unavailable to the locked service account.
+NoNewPrivileges=false
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/pixel-brightness
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,19 @@
+[Unit]
+Description=Complete Pixel Brightness appliance provisioning
+After=NetworkManager.service network-online.target cloud-final.service systemd-logind.service
+Wants=NetworkManager.service network-online.target systemd-logind.service
+# Ubuntu orders cloud-final.service after multi-user.target. Attach this desktop
+# provisioner to graphical.target so its cloud-final ordering cannot form a
+# multi-user.target startup cycle.
+StartLimitIntervalSec=0
+ConditionPathExists=!/var/lib/pixel-brightness/bootstrap/complete
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemd-inhibit --what=sleep:idle:handle-suspend-key:handle-hibernate-key:handle-lid-switch --who=Pixel-Brightness-Installer --why=Appliance-provisioning-must-finish --mode=block /opt/pixel-brightness-bootstrap/pixel-brightness-firstboot.sh
+Restart=on-failure
+RestartSec=30
+TimeoutStartSec=infinity
+
+[Install]
+WantedBy=graphical.target

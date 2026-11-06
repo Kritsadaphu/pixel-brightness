@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# Root-only, deliberately small control surface used by the Render Node.  The
+# caller may choose an action, but can never pass a shell command through this
+# helper.
+
+readonly NODE_UNIT="pixel-brightness-node.service"
+readonly SERVER_UNIT="pixel-brightness-server.service"
+readonly WEB_UNIT="pixel-brightness-web.service"
+
+die() {
+  printf 'pixel-brightness-hostctl: %s\n' "$*" >&2
+  exit 64
+}
+
+require_root() {
+  if [[ ${EUID} -ne 0 ]]; then
+    exec /usr/bin/sudo -n -- /usr/local/sbin/pixel-brightness-hostctl "$@"
+  fi
+}
+
+require_power_enabled() {
+  local config=/etc/pixel-brightness/node.json
+  command -v jq >/dev/null 2>&1 || die "jq is required for power-policy validation"
+  [[ -r "$config" ]] || die "power actions are disabled"
+  jq -e '.allowPowerActions == true' "$config" >/dev/null 2>&1 || die "power actions are disabled"
+}
+
+deferred_systemctl() {
+  local unit_name="$1"
+  local delay_ms="$2"
+  shift
+  shift
+  local delay_seconds
+  delay_seconds="$(awk -v milliseconds="$delay_ms" 'BEGIN { printf "%.3f", milliseconds / 1000 }')"
+  systemd-run \
+    --quiet \
+    --collect \
+    --unit="${unit_name}-$(date +%s)-$$" \
+    --on-active="${delay_seconds}s" \
+    /usr/bin/systemctl "$@"
+}
+
+valid_delay() {
+  [[ "$1" =~ ^[0-9]+$ ]] && (( 1 <= 10#$1 && 10#$1 <= 10000 ))
+}
+
+canonical_config() {
+  readlink -f -- "$1" 2>/dev/null || return 1
+}
+
+apply_kms_config() {
+  local config_path="$1"
+  local canonical
+  canonical="$(canonical_config "$config_path")" || die "display configuration does not exist"
+  [[ "$canonical" == /var/lib/pixel-brightness/node/display-config.json ]] || die "display configuration path is not allowlisted"
+  jq -e '
+    (.schemaVersion == 2) and
+    (.outputs | type == "array" and length > 0 and length <= 128) and
+    all(.outputs[];
+      (.connector | type == "string" and test("^[A-Za-z0-9_.:-]{1,128}$")) and
+      (.enabled | type == "boolean") and
+      (.x | type == "number" and . >= -262144 and . <= 262144) and
+      (.y | type == "number" and . >= -262144 and . <= 262144) and
+      (.resolution.width | type == "number" and . >= 64 and . <= 16384) and
+      (.resolution.height | type == "number" and . >= 64 and . <= 16384) and
+      (.resolution.refreshNum | type == "number" and . >= 1 and . <= 240000) and
+      (.resolution.refreshDen | type == "number" and . >= 1 and . <= 100000)
+    )
+  ' "$canonical" >/dev/null || die "display configuration failed validation"
+
+  local native_helper=/opt/pixel-brightness/current/runtime/native/pixel-brightness-kms
+  if [[ ! -x "$native_helper" ]]; then
+    printf '%s\n' '{"applied":false,"reason":"native-kms-renderer-not-installed"}' >&2
+    exit 69
+  fi
+  exec "$native_helper" apply-display-config --config "$canonical"
+}
+
+usage() {
+  cat <<'EOF'
+Usage: pixel-brightness-hostctl ACTION
+
+Allowlisted actions:
+  status            Show Pixel Brightness unit status
+  restart-node --service pixel-brightness-node.service --delay-ms N
+                    Restart the Render Node after a bounded grace period
+  restart-server    Restart the Control Server after a two-second grace period
+  restart-web       Restart Web Control after a two-second grace period
+  daemon-reload     Reload systemd unit files
+  apply-display-config --backend kms --config PATH
+                    Apply a validated config using the installed native helper
+  reboot --delay-ms N
+                    Reboot after a bounded grace period
+  shutdown --delay-ms N
+                    Power off after a bounded grace period
+
+No additional arguments are accepted.
+EOF
+}
+
+require_root "$@"
+action="${1:-}"
+shift || true
+
+case "$action" in
+  status)
+    [[ $# -eq 0 ]] || die "status accepts no arguments"
+    /usr/bin/systemctl --no-pager --full status "$NODE_UNIT" "$SERVER_UNIT" "$WEB_UNIT"
+    ;;
+  restart-node)
+    [[ $# -eq 4 && "$1" == "--service" && "$2" == "$NODE_UNIT" && "$3" == "--delay-ms" ]] || die "invalid restart-node arguments"
+    valid_delay "$4" || die "restart delay must be 1-10000 ms"
+    deferred_systemctl pixel-brightness-restart-node "$4" restart "$NODE_UNIT"
+    ;;
+  restart-server)
+    [[ $# -eq 0 ]] || die "restart-server accepts no arguments"
+    deferred_systemctl pixel-brightness-restart-server 2000 restart "$SERVER_UNIT"
+    ;;
+  restart-web)
+    [[ $# -eq 0 ]] || die "restart-web accepts no arguments"
+    deferred_systemctl pixel-brightness-restart-web 2000 restart "$WEB_UNIT"
+    ;;
+  daemon-reload)
+    [[ $# -eq 0 ]] || die "daemon-reload accepts no arguments"
+    /usr/bin/systemctl daemon-reload
+    ;;
+  apply-display-config)
+    [[ $# -eq 4 && "$1" == "--backend" && "$2" == "kms" && "$3" == "--config" ]] || die "invalid apply-display-config arguments"
+    apply_kms_config "$4"
+    ;;
+  reboot)
+    [[ $# -eq 2 && "$1" == "--delay-ms" ]] || die "invalid reboot arguments"
+    valid_delay "$2" || die "reboot delay must be 1-10000 ms"
+    require_power_enabled
+    deferred_systemctl pixel-brightness-reboot "$2" reboot
+    ;;
+  shutdown)
+    [[ $# -eq 2 && "$1" == "--delay-ms" ]] || die "invalid shutdown arguments"
+    valid_delay "$2" || die "shutdown delay must be 1-10000 ms"
+    require_power_enabled
+    deferred_systemctl pixel-brightness-shutdown "$2" poweroff
+    ;;
+  -h|--help|help)
+    [[ $# -eq 0 ]] || die "help accepts no arguments"
+    usage
+    ;;
+  *)
+    die "unsupported action: $action"
+    ;;
+esac

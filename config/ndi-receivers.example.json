@@ -1,0 +1,16 @@
+[
+  {
+    "outputId": "REPLACE_WITH_SAVED_LEFT_OUTPUT_ID",
+    "kind": "magewell-ip-v1",
+    "baseUrl": "http://192.168.68.34/",
+    "username": "REPLACE_WITH_DEVICE_USER",
+    "passwordEnv": "RECEIVER_LEFT_PASSWORD"
+  },
+  {
+    "outputId": "REPLACE_WITH_SAVED_RIGHT_OUTPUT_ID",
+    "kind": "kiloview-v1",
+    "baseUrl": "http://192.168.68.31/",
+    "username": "REPLACE_WITH_DEVICE_USER",
+    "passwordEnv": "RECEIVER_RIGHT_PASSWORD"
+  }
+]
