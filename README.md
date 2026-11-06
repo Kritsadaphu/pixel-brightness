@@ -21,6 +21,10 @@ preflight อยู่ใน [`docs/windows/ndi-arena-spout.md`](docs/windows/nd
 ทดสอบผ่าน 60 fps / 5 โปรเจคเตอร์ ดูผลวัดและข้อจำกัดล่าสุดใน
 [`docs/windows/ndi-video-preview.md`](docs/windows/ndi-video-preview.md)
 
+โดมเพดานที่เล่นคอนเทนต์ domemaster (fisheye) ใช้ `npm run dome:build` สร้าง mesh,
+blend และ mask ต่อโปรเจคเตอร์ และปรับให้ตรงได้โดยไม่ใช้กล้อง ดู
+[`docs/windows/dome-mapping.md`](docs/windows/dome-mapping.md) ยังไม่ได้ทดสอบบนโดมจริง
+
 ระบบตั้งเวลาเปิด–ปิดรายสัปดาห์สำหรับเครื่องเดียวอยู่ที่
 [`docs/windows/weekly-show-schedule.md`](docs/windows/weekly-show-schedule.md): BIOS/UEFI
 ปลุกเครื่อง, Windows auto-logon เข้าบัญชี Show, ระบบเปิด Arena/renderer แล้วค่อยเปิด

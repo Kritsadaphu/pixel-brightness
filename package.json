@@ -13,13 +13,14 @@
     "render-node": "node runtime/node/index.mjs",
     "demo": "node runtime/demo.mjs",
     "test": "node scripts/run-vinext.mjs build && node --test --test-concurrency=4 tests/*.test.mjs",
-    "test:unit": "node --test tests/calibration.test.mjs tests/mapping.test.mjs tests/protocol.test.mjs tests/timecore.test.mjs tests/panasonic-ntcontrol.test.mjs tests/projector-control.test.mjs tests/show-schedule.test.mjs",
+    "test:unit": "node --test tests/calibration.test.mjs tests/mapping.test.mjs tests/protocol.test.mjs tests/timecore.test.mjs tests/panasonic-ntcontrol.test.mjs tests/projector-control.test.mjs tests/show-schedule.test.mjs tests/dome-mapping.test.mjs",
     "test:server": "node --test tests/server.integration.test.mjs",
     "test:cluster": "node --test tests/distributed.integration.test.mjs",
     "typecheck": "tsc --noEmit",
     "types:worker": "wrangler types worker/runtime-env.d.ts --config worker/types.wrangler.jsonc",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "dome:build": "node scripts/dome-build.mjs"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",

@@ -1,0 +1,60 @@
+{
+  "_comment": "Example only. Replace every pose/lens value with tape-measured site values, then refine with calibrationPoints. Units: metres and degrees; origin = dome sphere centre on the spring-line plane, +X = front, +Z = up.",
+  "dome": {
+    "radiusM": 4.0,
+    "tiltDeg": 0,
+    "springElevationDeg": 0,
+    "eyepointM": [0, 0, 0]
+  },
+  "canvas": { "width": 4096, "height": 4096 },
+  "fisheye": {
+    "centerX": 2048,
+    "centerY": 2048,
+    "radiusPx": 1920,
+    "fovDeg": 180,
+    "rotationDeg": 0
+  },
+  "build": {
+    "meshColumns": 64,
+    "meshRows": 40,
+    "mapScale": 0.5,
+    "blendFeather": 0.12,
+    "blendPower": 2,
+    "maskSoftnessPx": 4
+  },
+  "projectors": [
+    {
+      "id": "PJ1",
+      "resolution": { "width": 1920, "height": 1200 },
+      "pose": { "positionM": [3.6, 0.0, -0.2], "yawDeg": 180, "pitchDeg": 30, "rollDeg": 0 },
+      "lens": { "throwRatio": 0.4, "shiftX": 0, "shiftY": 0 },
+      "renderer": { "display": { "devicePath": "\\\\?\\DISPLAY#replace-with-list-displays-value", "gdiName": "\\\\.\\DISPLAY2", "adapterLuid": null, "targetId": null } },
+      "solve": { "free": ["px", "py", "pz", "yawDeg", "pitchDeg", "rollDeg"] },
+      "calibrationPoints": []
+    },
+    {
+      "id": "PJ2",
+      "resolution": { "width": 1920, "height": 1200 },
+      "pose": { "positionM": [1.1125, 3.4238, -0.2], "yawDeg": 252, "pitchDeg": 30, "rollDeg": 0 },
+      "lens": { "throwRatio": 0.4, "shiftX": 0, "shiftY": 0 }
+    },
+    {
+      "id": "PJ3",
+      "resolution": { "width": 1920, "height": 1200 },
+      "pose": { "positionM": [-2.9125, 2.1160, -0.2], "yawDeg": 324, "pitchDeg": 30, "rollDeg": 0 },
+      "lens": { "throwRatio": 0.4, "shiftX": 0, "shiftY": 0 }
+    },
+    {
+      "id": "PJ4",
+      "resolution": { "width": 1920, "height": 1200 },
+      "pose": { "positionM": [-2.9125, -2.1160, -0.2], "yawDeg": 36, "pitchDeg": 30, "rollDeg": 0 },
+      "lens": { "throwRatio": 0.4, "shiftX": 0, "shiftY": 0 }
+    },
+    {
+      "id": "PJ5",
+      "resolution": { "width": 1920, "height": 1200 },
+      "pose": { "positionM": [1.1125, -3.4238, -0.2], "yawDeg": 108, "pitchDeg": 30, "rollDeg": 0 },
+      "lens": { "throwRatio": 0.4, "shiftX": 0, "shiftY": 0 }
+    }
+  ]
+}
