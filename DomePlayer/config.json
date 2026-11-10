@@ -1,0 +1,44 @@
+{
+  "video": {
+    "path": "C:/YDome/data/videos/Solar_Cell_Master_4K.mp4",
+    "loop": true,
+    "audio": true,
+    "volume": 100,
+    "hwdec": "nvdec,nvdec-copy,auto-copy",
+    "cuda_device": -1
+  },
+  "display": {
+    "monitor": 1,
+    "fullscreen": true,
+    "mode": "borderless",
+    "width": 1920,
+    "height": 1200,
+    "refresh_rate": 0,
+    "vsync": true,
+    "always_on_top": true,
+    "hide_cursor": true
+  },
+  "preview": {
+    "fit": "contain",
+    "zoom": 1.0,
+    "rotate_deg": 0,
+    "flip_x": false,
+    "flip_y": false,
+    "background": [0, 0, 0]
+  },
+  "render": {
+    "video_texture_size": 0,
+    "mipmaps": true
+  },
+  "stats": {
+    "show_on_start": true,
+    "key": "F1",
+    "font_size": 22
+  },
+  "keys": {
+    "quit": "ESCAPE",
+    "pause": "SPACE",
+    "restart": "HOME"
+  },
+  "log_level": "info"
+}
