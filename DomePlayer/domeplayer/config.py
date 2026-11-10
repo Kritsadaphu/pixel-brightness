@@ -71,8 +71,22 @@ DEFAULTS: dict = {
         "pause": "SPACE",
         "restart": "HOME",
     },
+    # Stacked projection: every projector shows the same full image on the same dome area.
+    "stack": {
+        # true = show the video on every monitor in "monitors" (one window spanning them all,
+        # so all projectors always show the same video frame). false = only display.monitor.
+        "enabled": False,
+        "monitors": [1, 2, 3, 4, 5, 6],
+    },
+    # Per-projector alignment, written by the player's edit mode (E key, then Ctrl+S).
+    # "3": {"corners": [[x, y] top-left, top-right, bottom-right, bottom-left], "brightness": 1.0}
+    # Corners are fractions of that output's width/height (0..1, y downwards).
+    "outputs": {},
     "log_level": "info",
 }
+
+# Sections whose keys are free (monitor numbers) instead of fixed setting names.
+FREE_SECTIONS = {"outputs"}
 
 
 class ConfigError(Exception):
@@ -87,7 +101,11 @@ def _merge(base: dict, override: dict, path: str = "") -> dict:
         full = f"{path}{key}"
         if key not in base:
             raise ConfigError(f'Unknown setting "{full}" in config.json (check spelling)')
-        if isinstance(base[key], dict):
+        if full in FREE_SECTIONS:
+            if not isinstance(value, dict):
+                raise ConfigError(f'"{full}" must be a {{ ... }} section')
+            out[key] = copy.deepcopy(value)
+        elif isinstance(base[key], dict):
             if not isinstance(value, dict):
                 raise ConfigError(f'"{full}" must be a {{ ... }} section')
             out[key] = _merge(base[key], value, full + ".")
@@ -138,5 +156,39 @@ def load_config(path: Path | None = None) -> dict:
     _check(isinstance(s["font_size"], int) and 8 <= s["font_size"] <= 200, "stats.font_size must be 8-200")
     _check(isinstance(v["cuda_device"], int), "video.cuda_device must be a number (-1 = auto)")
 
+    st = cfg["stack"]
+    mons = st["monitors"]
+    _check(isinstance(mons, list) and mons and all(isinstance(m, int) and m >= 1 for m in mons)
+           and len(set(mons)) == len(mons),
+           "stack.monitors must be a list of different monitor numbers, e.g. [3, 6, 2, 4, 5, 1]")
+    for num, o in cfg["outputs"].items():
+        where = f'outputs."{num}"'
+        _check(str(num).isdigit(), f"{where}: the name must be a monitor number in quotes, e.g. \"3\"")
+        _check(isinstance(o, dict), f"{where} must be a {{ ... }} section")
+        unknown = set(o) - {"corners", "brightness"} - {k for k in o if k.startswith("_")}
+        _check(not unknown, f"{where}: unknown setting {sorted(unknown)}")
+        if "corners" in o:
+            c = o["corners"]
+            _check(isinstance(c, list) and len(c) == 4 and all(
+                isinstance(pt, list) and len(pt) == 2 and all(isinstance(x, (int, float)) for x in pt)
+                for pt in c), f"{where}.corners must be 4 points [[x, y], [x, y], [x, y], [x, y]]")
+        if "brightness" in o:
+            b = o["brightness"]
+            _check(isinstance(b, (int, float)) and 0 <= b <= 2, f"{where}.brightness must be 0.0-2.0")
+
     cfg["video"]["path_resolved"] = str(resolve_path(v["path"]))
+    cfg["_config_path"] = str(path)
     return cfg
+
+
+def save_outputs(config_path: str | Path, outputs: dict) -> None:
+    """Write per-projector alignment into config.json, keeping everything else as it is."""
+    path = Path(config_path)
+    raw = json.loads(path.read_text(encoding="utf-8-sig")) if path.exists() else {}
+    merged = dict(raw.get("outputs") or {})
+    for num, o in outputs.items():
+        merged.setdefault(str(num), {}).update(o)
+    raw["outputs"] = dict(sorted(merged.items(), key=lambda kv: int(kv[0])))
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    tmp.replace(path)

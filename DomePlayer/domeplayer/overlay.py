@@ -60,9 +60,10 @@ class TextOverlay:
         self._text = None
 
     def set_text(self, text: str, color=(235, 235, 235)) -> None:
-        if text == self._text:
+        key = (text, color)
+        if key == self._text:
             return
-        self._text = text
+        self._text = key
         if not text:
             return
         probe = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
@@ -72,6 +73,15 @@ class TextOverlay:
         img = Image.new("RGBA", (w, h), (0, 0, 0, 170))
         ImageDraw.Draw(img).multiline_text((self.pad, self.pad), text, font=self.font,
                                            fill=color + (255,), spacing=4)
+        self._upload(img)
+
+    def set_image(self, img: Image.Image) -> None:
+        """Use a ready-made RGBA image instead of text (e.g. corner markers)."""
+        self._text = ("<image>", id(img))
+        self._upload(img.convert("RGBA"))
+
+    def _upload(self, img: Image.Image) -> None:
+        w, h = img.size
         if self.tex is None or self.tex.size != (w, h):
             if self.tex is not None:
                 self.tex.release()
@@ -81,7 +91,7 @@ class TextOverlay:
         self.size = (w, h)
 
     def draw(self, screen_w: int, screen_h: int, x: int = 16, y: int = 16, center: bool = False) -> None:
-        if not self._text or self.tex is None:
+        if not self._text or not self._text[0] or self.tex is None:
             return
         w, h = self.size
         if center:

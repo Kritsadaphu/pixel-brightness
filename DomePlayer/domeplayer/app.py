@@ -1,10 +1,15 @@
-"""DomePlayer phase 1: play a Domemaster fisheye video, looped, fullscreen on one monitor.
+"""DomePlayer: play a Domemaster fisheye video, looped, on one monitor or stacked on many.
 
-Pipeline (kept this way so later phases only add shaders, not a new architecture):
+Pipeline:
 
     file --(NVDEC, CUDA->GL interop)--> mpv render API --> video texture (FBO, native 3840x3840)
-         --> our GLSL shader (now: fit/rotate preview; later: per-projector fisheye slice,
-             mesh warp, edge blend) --> window back buffer --> swap (vsync)
+         --> our GLSL shader, once per output (4-corner warp, brightness, test grid)
+         --> one window back buffer --> swap (vsync)
+
+Stacked projection (stack.enabled): every projector shows the same full image on the same dome
+area. All outputs live in ONE borderless window that spans those monitors, so every projector
+gets the same video frame in the same swap; no network sync between processes is needed.
+Each output has its own 4-corner warp + brightness so the stacked images can be lined up.
 """
 from __future__ import annotations
 
@@ -18,13 +23,14 @@ import time
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from .config import APP_DIR, ConfigError, load_config
+from . import warp
+from .config import APP_DIR, ConfigError, load_config, save_outputs
 
 log = logging.getLogger("domeplayer")
 
 VIDEO_VERT = """
 #version 330
-in vec2 in_pos;          // full-screen quad, -1..1
+in vec2 in_pos;          // full-viewport quad, -1..1
 out vec2 v_ndc;
 void main() { v_ndc = in_pos; gl_Position = vec4(in_pos, 0.0, 1.0); }
 """
@@ -33,24 +39,65 @@ VIDEO_FRAG = """
 #version 330
 uniform sampler2D u_video;
 uniform bool  u_has_video;
-uniform vec2  u_scale;   // screen NDC -> video NDC (aspect fit + zoom)
+uniform mat3  u_hinv;    // output (0..1, y down) -> image square (0..1, y down)
 uniform vec2  u_flip;
 uniform float u_rot;     // radians
 uniform vec3  u_bg;
+uniform float u_gain;    // signal multiplier (brightness)
+uniform int   u_mode;    // 0 = video, 1 = test grid
+uniform vec3  u_tint;    // test grid colour of this output
+uniform float u_sweep;   // 0..1, advances every display refresh (sync check)
 in vec2 v_ndc;
 out vec4 f_color;
+
+float lines(vec2 x) {
+    vec2 g = abs(fract(x + 0.5) - 0.5) / max(fwidth(x), vec2(1e-5));
+    return 1.0 - clamp(min(g.x, g.y) - 0.5, 0.0, 1.0);
+}
+float rings(float x) {
+    float g = abs(fract(x + 0.5) - 0.5) / max(fwidth(x), 1e-5);
+    return 1.0 - clamp(g - 0.75, 0.0, 1.0);
+}
+
 void main() {
-    vec2 p = v_ndc * u_scale * u_flip;
-    float c = cos(u_rot), s = sin(u_rot);
-    p = mat2(c, s, -s, c) * p;
-    vec2 uv = p * 0.5 + 0.5;
-    if (!u_has_video || any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) {
+    vec2 o = vec2(v_ndc.x * 0.5 + 0.5, 0.5 - v_ndc.y * 0.5);
+    vec3 q = u_hinv * vec3(o, 1.0);
+    vec2 s = q.xy / q.z;
+    if (q.z <= 0.0 || any(lessThan(s, vec2(0.0))) || any(greaterThan(s, vec2(1.0)))) {
         f_color = vec4(u_bg, 1.0);
         return;
     }
-    f_color = vec4(texture(u_video, uv).rgb, 1.0);
+    vec2 p = vec2(s.x * 2.0 - 1.0, 1.0 - s.y * 2.0) * u_flip;   // -1..1, y up
+    float c = cos(u_rot), sn = sin(u_rot);
+    p = mat2(c, sn, -sn, c) * p;
+    vec2 uv = p * 0.5 + 0.5;
+    if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) {
+        f_color = vec4(u_bg, 1.0);
+        return;
+    }
+    vec3 col;
+    if (u_mode == 1) {
+        float r = length(p);
+        col = vec3(0.05);
+        col = mix(col, u_tint, lines(uv * 16.0));
+        col = mix(col, vec3(1.0), rings(r * 4.0) * step(r, 1.01));
+        float ang = atan(p.y, p.x) / 6.2831853 + 0.5;
+        float d = abs(fract(ang - u_sweep + 0.5) - 0.5) * 6.2831853 * max(r, 0.05);
+        col = mix(col, vec3(1.0), (1.0 - smoothstep(0.004, 0.010, d)) * step(r, 1.0));
+        if (r > 1.0) col *= 0.35;
+    } else if (u_has_video) {
+        col = texture(u_video, uv).rgb;
+    } else {
+        col = u_bg;
+    }
+    f_color = vec4(clamp(col * u_gain, 0.0, 1.0), 1.0);
 }
 """
+
+# test grid colour per output (by position in stack.monitors)
+TINTS = [(1.0, 0.25, 0.25), (0.25, 1.0, 0.25), (0.35, 0.5, 1.0),
+         (1.0, 1.0, 0.2), (1.0, 0.3, 1.0), (0.2, 1.0, 1.0), (1.0, 0.6, 0.2), (0.8, 0.8, 0.8)]
+CORNER_NAMES = ["top-left", "top-right", "bottom-right", "bottom-left"]
 
 
 # --------------------------------------------------------------------------- setup helpers
@@ -98,6 +145,18 @@ def key_code(glfw, name: str):
     return code
 
 
+def _marker(color, size=30):
+    from PIL import Image, ImageDraw
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    dr = ImageDraw.Draw(img)
+    dr.ellipse((2, 2, size - 3, size - 3), outline=(0, 0, 0, 255), width=6)
+    dr.ellipse((2, 2, size - 3, size - 3), outline=color + (255,), width=3)
+    m = size // 2
+    dr.line((m, 6, m, size - 7), fill=color + (255,), width=1)
+    dr.line((6, m, size - 7, m), fill=color + (255,), width=1)
+    return img
+
+
 # --------------------------------------------------------------------------- the player
 
 class DomePlayer:
@@ -114,29 +173,49 @@ class DomePlayer:
         self._mpv_errors: list[str] = []
         self._file_loaded = False
         self._load_time = 0.0
+        self.player = None
+
+        # stacking / alignment state
+        st = cfg["stack"]
+        self.nums: list[int] = list(st["monitors"]) if st["enabled"] else [cfg["display"]["monitor"]]
+        self.corners: dict[int, list] = {}
+        self.gain: dict[int, float] = {}
+        for k, o in cfg["outputs"].items():
+            n = int(k)
+            if "corners" in o and warp.is_valid(o["corners"]):
+                self.corners[n] = [list(map(float, pt)) for pt in o["corners"]]
+            elif "corners" in o:
+                log.warning("outputs.%s.corners is not a usable shape, ignored", k)
+            if "brightness" in o:
+                self.gain[n] = float(o["brightness"])
+        self.solo: int | None = None
+        self.test = False
+        self.edit = False
+        self.sel_corner = 0
+        self.dragging = False
+        self.dirty: set[int] = set()
+        self.toast: tuple[str, float] | None = None
+        self.frame_no = 0
+        self._rects: dict[int, tuple[int, int, int, int]] = {}
 
     # ---- window ----------------------------------------------------------------------
     def create_window(self):
         import glfw
-        from .monitors import find_monitor
+        from .monitors import list_monitors
 
         d = self.cfg["display"]
         if not glfw.init():
             raise RuntimeError("could not initialise GLFW (graphics driver problem?)")
         self.glfw = glfw
 
-        mon, all_mons = find_monitor(d["monitor"])
+        all_mons = list_monitors()
         for m in all_mons:
             log.info("found %s", m.describe())
-        if mon is None:
-            mon = next((m for m in all_mons if m.primary), all_mons[0] if all_mons else None)
-            msg = (f"display.monitor = {d['monitor']} not found, using monitor "
-                   f"{mon.number if mon else '?'}. Run IDENTIFY-MONITORS.bat.")
-            log.warning(msg)
-            self.messages.append(msg)
-        if mon is None:
+        by_num = {m.number: m for m in all_mons}
+        primary = next((m for m in all_mons if m.primary), all_mons[0] if all_mons else None)
+        if primary is None:
             raise RuntimeError("no monitor found")
-        self.monitor = mon
+        missing = [n for n in self.nums if n not in by_num]
 
         glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
         glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
@@ -147,39 +226,71 @@ class DomePlayer:
         glfw.window_hint(glfw.FLOATING, bool(d["always_on_top"] and d["fullscreen"]))
 
         title = "DomePlayer"
+        win = None
         if not d["fullscreen"]:
+            # test window: 1 output fills it, several outputs are shown side by side
+            ref = by_num.get(self.nums[0], primary)
             glfw.window_hint(glfw.DECORATED, True)
             win = glfw.create_window(d["width"], d["height"], title, None, None)
             if win:
-                glfw.set_window_pos(win, mon.x + 40, mon.y + 40)
-        elif d["mode"] == "exclusive":
-            if d["refresh_rate"]:
-                glfw.window_hint(glfw.REFRESH_RATE, d["refresh_rate"])
-            win = glfw.create_window(d["width"], d["height"], title, mon.handle, None)
-        else:  # borderless window that exactly covers the monitor
-            glfw.window_hint(glfw.DECORATED, False)
-            glfw.window_hint(glfw.VISIBLE, False)
-            win = glfw.create_window(mon.width, mon.height, title, None, None)
-            if win:
-                glfw.set_window_pos(win, mon.x, mon.y)
-                glfw.set_window_size(win, mon.width, mon.height)
-                glfw.show_window(win)
+                glfw.set_window_pos(win, ref.x + 40, ref.y + 40)
+            self.layout = "full" if len(self.nums) == 1 else "tile"
+        else:
+            if missing:
+                msg = (f"monitor {', '.join(map(str, missing))} not found (not connected or "
+                       "different number). Run IDENTIFY-MONITORS / 'show monitor numbers'.")
+                log.warning(msg)
+                self.messages.append(msg)
+                self.nums = [n for n in self.nums if n in by_num]
+            if not self.nums:
+                self.nums = [primary.number]
+            present = [by_num[n] for n in self.nums]
+            ref = present[0]
+            if len(present) == 1 and d["mode"] == "exclusive":
+                if d["refresh_rate"]:
+                    glfw.window_hint(glfw.REFRESH_RATE, d["refresh_rate"])
+                win = glfw.create_window(d["width"], d["height"], title, ref.handle, None)
+                self.layout = "full"
+            else:  # one borderless window exactly covering all the chosen monitors
+                x0 = min(m.x for m in present)
+                y0 = min(m.y for m in present)
+                x1 = max(m.x + m.width for m in present)
+                y1 = max(m.y + m.height for m in present)
+                glfw.window_hint(glfw.DECORATED, False)
+                glfw.window_hint(glfw.VISIBLE, False)
+                win = glfw.create_window(x1 - x0, y1 - y0, title, None, None)
+                if win:
+                    glfw.set_window_pos(win, x0, y0)
+                    glfw.set_window_size(win, x1 - x0, y1 - y0)
+                    glfw.show_window(win)
+                self.layout = "fixed"
+                self.fixed_rects = {m.number: (m.x - x0, m.y - y0, m.width, m.height) for m in present}
+                self.window_size = (x1 - x0, y1 - y0)
         if not win:
             raise RuntimeError("could not create an OpenGL 3.3 window (is the NVIDIA driver installed?)")
         self.window = win
+        self.monitor = ref
         glfw.make_context_current(win)
         self.vsync = bool(d["vsync"])
         glfw.swap_interval(1 if self.vsync else 0)
-        if d["hide_cursor"] and d["fullscreen"]:
+        self.hide_cursor = bool(d["hide_cursor"] and d["fullscreen"])
+        if self.hide_cursor:
             glfw.set_input_mode(win, glfw.CURSOR, glfw.CURSOR_HIDDEN)
         glfw.set_key_callback(win, self._on_key)
+        glfw.set_mouse_button_callback(win, self._on_mouse_button)
+        glfw.set_cursor_pos_callback(win, self._on_cursor)
         glfw.focus_window(win)
 
-        mode = glfw.get_video_mode(mon.handle)
+        mode = glfw.get_video_mode(ref.handle)
         self.refresh_hz = float(mode.refresh_rate or 60)
-        log.info("output on monitor %d (%s), %dx%d @ %.0f Hz, mode=%s, vsync=%s",
-                 mon.number, mon.device or mon.name, mode.size.width, mode.size.height,
-                 self.refresh_hz, d["mode"] if d["fullscreen"] else "window", self.vsync)
+        rates = {by_num[n].refresh for n in self.nums if n in by_num}
+        if len(rates) > 1:
+            msg = f"monitors run at different refresh rates {sorted(rates)} Hz - set them all the same"
+            log.warning(msg)
+            self.messages.append(msg)
+        log.info("outputs %s (layout %s), reference monitor %d %dx%d @ %.0f Hz, vsync=%s",
+                 self.nums, self.layout, ref.number, mode.size.width, mode.size.height,
+                 self.refresh_hz, self.vsync)
 
         k = self.cfg["keys"]
         self.keys = {
@@ -189,8 +300,105 @@ class DomePlayer:
             "stats": key_code(glfw, self.cfg["stats"]["key"]),
         }
 
-    def _on_key(self, _win, key, _scancode, action, _mods):
-        if action != self.glfw.PRESS:
+    def output_rects(self, fw: int, fh: int) -> list[tuple[int, int, int, int, int]]:
+        """(monitor number, x, y, w, h) in framebuffer pixels, top-left origin."""
+        if self.layout == "full":
+            return [(self.nums[0], 0, 0, fw, fh)]
+        if self.layout == "tile":
+            if self.solo is not None:   # test window: one output at a time fills it
+                return [(self.solo, 0, 0, fw, fh)]
+            return [(n, *r) for n, r in zip(self.nums, warp.tile_rects(len(self.nums), fw, fh))]
+        ww, wh = self.window_size
+        sx, sy = fw / ww, fh / wh
+        return [(n, round(x * sx), round(y * sy), round(w * sx), round(h * sy))
+                for n, (x, y, w, h) in self.fixed_rects.items()]
+
+    # ---- input -----------------------------------------------------------------------
+    def say(self, text: str, seconds: float = 3.0) -> None:
+        self.toast = (text, time.perf_counter() + seconds)
+        log.info("%s", text.replace("\n", " "))
+
+    def edit_target(self) -> int | None:
+        if self.solo is not None:
+            return self.solo
+        return self.nums[0] if len(self.nums) == 1 else None
+
+    def corners_for(self, num: int, w: int, h: int) -> list:
+        if num in self.corners:
+            return self.corners[num]
+        p = self.cfg["preview"]
+        aspect = (self.video_size[0] / self.video_size[1]) if self.video_size else 1.0
+        return warp.default_corners(w, h, aspect, p["fit"], float(p["zoom"]))
+
+    def _set_corner(self, num: int, idx: int, x: float, y: float) -> None:
+        r = self._rects.get(num)
+        if r is None:
+            return
+        cur = [list(pt) for pt in self.corners_for(num, r[2], r[3])]
+        cur[idx] = [min(max(x, -1.0), 2.0), min(max(y, -1.0), 2.0)]
+        if warp.is_valid(cur):
+            self.corners[num] = cur
+            self.dirty.add(num)
+
+    def save_alignment(self) -> None:
+        nums = sorted(self.dirty)
+        if not nums:
+            self.say("nothing changed")
+            return
+        data = {}
+        for n in nums:
+            o = {"brightness": round(self.gain.get(n, 1.0), 3)}
+            if n in self.corners:
+                o["corners"] = [[round(x, 5), round(y, 5)] for x, y in self.corners[n]]
+            data[str(n)] = o
+        try:
+            save_outputs(self.cfg["_config_path"], data)
+        except OSError as e:
+            self.say(f"could not save config.json: {e}", 6)
+            return
+        self.dirty.clear()
+        self.say(f"saved alignment of monitor {', '.join(map(str, nums))} to config.json")
+
+    def _on_key(self, _win, key, _scancode, action, mods):
+        g = self.glfw
+        if action not in (g.PRESS, g.REPEAT):
+            return
+        repeatable = key in (g.KEY_LEFT, g.KEY_RIGHT, g.KEY_UP, g.KEY_DOWN, g.KEY_EQUAL, g.KEY_MINUS,
+                             g.KEY_KP_ADD, g.KEY_KP_SUBTRACT)
+        if action == g.REPEAT and not repeatable:
+            return
+        ctrl = bool(mods & g.MOD_CONTROL)
+        shift = bool(mods & g.MOD_SHIFT)
+
+        if ctrl and key == g.KEY_S:
+            self.save_alignment()
+            return
+        digit = None
+        if g.KEY_0 <= key <= g.KEY_9:
+            digit = key - g.KEY_0
+        elif g.KEY_KP_0 <= key <= g.KEY_KP_9:
+            digit = key - g.KEY_KP_0
+        if digit is not None:
+            if digit == 0:
+                self.solo = None
+                if self.edit and len(self.nums) > 1:
+                    self.edit = False
+                self.say("showing all outputs")
+            elif digit in self.nums:
+                self.solo = digit
+                self.say(f"showing only monitor {digit}" + ("  (E = align it)" if not self.edit else ""))
+            else:
+                self.say(f"monitor {digit} is not one of the outputs {self.nums}")
+            self._update_cursor()
+            return
+        if key == g.KEY_T:
+            self.test = not self.test
+            return
+        if key == g.KEY_E or (self.edit and key == g.KEY_ESCAPE):
+            self.toggle_edit()
+            return
+        if self.edit:
+            self._edit_key(key, shift)
             return
         if key == self.keys["stats"]:
             self.show_stats = not self.show_stats
@@ -201,6 +409,85 @@ class DomePlayer:
         elif key == self.keys["restart"] and self.player is not None:
             self.player.seek(0, "absolute", "exact")
             self.stats.reset()
+
+    def toggle_edit(self) -> None:
+        if self.edit:
+            self.edit = False
+            self.dragging = False
+            if self.dirty:
+                self.say("alignment NOT saved yet - press Ctrl+S", 5)
+        else:
+            if self.edit_target() is None:
+                self.say("first press a monitor number (1-9) to show one output, then E", 5)
+                return
+            self.edit = True
+            self.test = True
+            self.sel_corner = 0
+        self._update_cursor()
+
+    def _edit_key(self, key, shift) -> None:
+        g = self.glfw
+        num = self.edit_target()
+        r = self._rects.get(num)
+        if num is None or r is None:
+            return
+        if key == g.KEY_TAB:
+            self.sel_corner = (self.sel_corner + (3 if shift else 1)) % 4
+        elif key in (g.KEY_LEFT, g.KEY_RIGHT, g.KEY_UP, g.KEY_DOWN):
+            step = 10 if shift else 1
+            dx = {g.KEY_LEFT: -step, g.KEY_RIGHT: step}.get(key, 0) / r[2]
+            dy = {g.KEY_UP: -step, g.KEY_DOWN: step}.get(key, 0) / r[3]
+            x, y = self.corners_for(num, r[2], r[3])[self.sel_corner]
+            self._set_corner(num, self.sel_corner, x + dx, y + dy)
+        elif key in (g.KEY_EQUAL, g.KEY_KP_ADD, g.KEY_MINUS, g.KEY_KP_SUBTRACT):
+            up = key in (g.KEY_EQUAL, g.KEY_KP_ADD)
+            self.gain[num] = round(min(2.0, max(0.0, self.gain.get(num, 1.0) + (0.02 if up else -0.02))), 3)
+            self.dirty.add(num)
+        elif key == g.KEY_R:
+            self.corners.pop(num, None)
+            self.gain[num] = 1.0
+            self.dirty.add(num)
+            self.say(f"monitor {num}: alignment reset (Ctrl+S to keep)")
+
+    def _cursor_fb(self):
+        g = self.glfw
+        cx, cy = g.get_cursor_pos(self.window)
+        ww, wh = g.get_window_size(self.window)
+        fw, fh = g.get_framebuffer_size(self.window)
+        return cx * fw / max(ww, 1), cy * fh / max(wh, 1)
+
+    def _on_mouse_button(self, _win, button, action, _mods):
+        g = self.glfw
+        if not self.edit or button != g.MOUSE_BUTTON_LEFT:
+            return
+        if action == g.RELEASE:
+            self.dragging = False
+            return
+        num = self.edit_target()
+        r = self._rects.get(num)
+        if r is None:
+            return
+        cx, cy = self._cursor_fb()
+        pts = self.corners_for(num, r[2], r[3])
+        dist = [math.hypot(r[0] + x * r[2] - cx, r[1] + y * r[3] - cy) for x, y in pts]
+        self.sel_corner = dist.index(min(dist))
+        self.dragging = True
+        self._on_cursor(None, 0, 0)
+
+    def _on_cursor(self, _win, _x, _y):
+        if not (self.edit and self.dragging):
+            return
+        num = self.edit_target()
+        r = self._rects.get(num)
+        if r is None:
+            return
+        cx, cy = self._cursor_fb()
+        self._set_corner(num, self.sel_corner, (cx - r[0]) / r[2], (cy - r[1]) / r[3])
+
+    def _update_cursor(self):
+        g = self.glfw
+        hidden = self.hide_cursor and not self.edit
+        g.set_input_mode(self.window, g.CURSOR, g.CURSOR_HIDDEN if hidden else g.CURSOR_NORMAL)
 
     # ---- GL resources --------------------------------------------------------------------
     def create_gl(self):
@@ -223,8 +510,19 @@ class DomePlayer:
         self.dummy_tex = self.ctx.texture((16, 16), 4)
         self.dummy_fbo = self.ctx.framebuffer([self.dummy_tex])
 
-        self.overlay = TextOverlay(self.ctx, self.cfg["stats"]["font_size"])
-        self.msg_overlay = TextOverlay(self.ctx, max(24, self.cfg["stats"]["font_size"] + 6))
+        fs = self.cfg["stats"]["font_size"]
+        self.overlay = TextOverlay(self.ctx, fs)
+        self.msg_overlay = TextOverlay(self.ctx, max(24, fs + 6))
+        self.help_overlay = TextOverlay(self.ctx, fs)
+        self.toast_overlay = TextOverlay(self.ctx, max(24, fs + 4))
+        self.labels = {n: TextOverlay(self.ctx, 72) for n in self.nums}
+        for i, n in enumerate(self.nums):
+            tint = TINTS[i % len(TINTS)]
+            self.labels[n].set_text(f" {n} ", color=tuple(int(c * 255) for c in tint))
+        self.mark = TextOverlay(self.ctx, 10)
+        self.mark.set_image(_marker((255, 255, 255)))
+        self.mark_sel = TextOverlay(self.ctx, 10)
+        self.mark_sel.set_image(_marker((255, 220, 0), 40))
 
     def ensure_video_target(self):
         if self.video_size is None:
@@ -351,7 +649,6 @@ class DomePlayer:
     def run(self):
         from .stats import FrameStats
 
-        self.player = None
         self.create_window()
         self.create_gl()
         self.create_player(self._mpv)
@@ -389,60 +686,112 @@ class DomePlayer:
                             self.video_tex.build_mipmaps()
                         self.stats.on_video_frame()
 
-            # 2) draw to the window (mpv may have changed GL state, so set what we need)
+            # 2) draw every output (mpv may have changed GL state, so set what we need)
             fw, fh = glfw.get_framebuffer_size(self.window)
             if fw == 0 or fh == 0:
                 time.sleep(0.01)
                 continue
-            screen = self.ctx.screen
-            screen.use()
-            self.ctx.viewport = (0, 0, fw, fh)
-            self.ctx.disable(self.mgl.BLEND | self.mgl.DEPTH_TEST | self.mgl.CULL_FACE)
-            self.draw_video(fw, fh, bg)
-
-            if self.show_stats:
-                if now >= next_stats_text:
-                    next_stats_text = now + 0.25
-                    self.overlay.set_text(self.stats_text())
-                self.overlay.draw(fw, fh)
-            msgs = list(self.messages)
-            if (self._file_loaded and self._mpv_errors and now - self._load_time > 3.0
-                    and self.prop("idle-active")):
-                msgs.append("Video could not be played:\n" + self._mpv_errors[-1])
-            if msgs:
-                self.msg_overlay.set_text("\n\n".join(msgs), color=(255, 200, 80))
-                self.msg_overlay.draw(fw, fh, center=True)
+            self.draw_frame(fw, fh, bg, now)
 
             glfw.swap_buffers(self.window)
             self.render_ctx.report_swap()
             self.stats.on_swap(self.vsync)
+            self.frame_no += 1
 
         self.shutdown()
 
-    def draw_video(self, fw, fh, bg):
+    def draw_frame(self, fw: int, fh: int, bg, now: float) -> None:
+        mgl = self.mgl
+        self.ctx.screen.use()
+        self.ctx.viewport = (0, 0, fw, fh)
+        self.ctx.disable(mgl.BLEND | mgl.DEPTH_TEST | mgl.CULL_FACE)
+        self.ctx.clear(0.0, 0.0, 0.0, 1.0)
+
+        rects = self.output_rects(fw, fh)
+        self._rects = {n: (x, y, w, h) for n, x, y, w, h in rects}
+        visible = [r for r in rects if self.solo is None or r[0] == self.solo]
+        target = self.edit_target() if self.edit else None
+
+        for n, x, y, w, h in visible:
+            self.ctx.viewport = (x, fh - y - h, w, h)
+            self.draw_output(n, w, h, bg)
+            if self.test:
+                self.labels[n].draw(w, h, center=True)
+            if n == target:
+                pts = self.corners_for(n, w, h)
+                for i, (px, py) in enumerate(pts):
+                    mk = self.mark_sel if i == self.sel_corner else self.mark
+                    mw, mh = mk.size
+                    mk.draw(w, h, x=int(px * w - mw / 2), y=int(py * h - mh / 2))
+                self.help_overlay.set_text(self.edit_help(n), color=(255, 230, 120))
+                self.help_overlay.draw(w, h, x=16, y=max(16, h - self.help_overlay.size[1] - 16))
+
+        # text goes on the first visible output (or the whole window if none)
+        if visible:
+            _, x, y, w, h = visible[0]
+            self.ctx.viewport = (x, fh - y - h, w, h)
+        else:
+            w, h = fw, fh
+            self.ctx.viewport = (0, 0, fw, fh)
+        if self.show_stats and not self.edit:
+            if now >= self._next_stats:
+                self._next_stats = now + 0.25
+                self.overlay.set_text(self.stats_text())
+            self.overlay.draw(w, h)
+        msgs = list(self.messages)
+        if (self._file_loaded and self._mpv_errors and now - self._load_time > 3.0
+                and self.prop("idle-active")):
+            msgs.append("Video could not be played:\n" + self._mpv_errors[-1])
+        if msgs:
+            self.msg_overlay.set_text("\n\n".join(msgs), color=(255, 200, 80))
+            self.msg_overlay.draw(w, h, center=True)
+        if self.toast and now < self.toast[1]:
+            self.toast_overlay.set_text(self.toast[0], color=(140, 255, 160))
+            tw, th = self.toast_overlay.size
+            self.toast_overlay.draw(w, h, x=(w - tw) // 2, y=max(16, h // 5))
+
+    _next_stats = 0.0
+
+    def draw_output(self, num: int, w: int, h: int, bg) -> None:
         p = self.cfg["preview"]
-        has_video = self.video_tex is not None
-        sx = sy = 1.0
-        if has_video and p["fit"] != "stretch":
-            vw, vh = self.video_tex.size
-            a = vw / vh            # video aspect
-            s = fw / fh            # screen aspect
-            cover = p["fit"] == "cover"
-            if (a < s) != cover:   # fit height
-                sx = s / a
-            else:                  # fit width
-                sy = a / s
-        zoom = float(p["zoom"]) or 1.0
         prog = self.prog
-        prog["u_scale"].value = (sx / zoom, sy / zoom)
-        prog["u_flip"].value = (-1.0 if p["flip_x"] else 1.0, -1.0 if p["flip_y"] else 1.0)
-        prog["u_rot"].value = math.radians(float(p["rotate_deg"]))
-        prog["u_bg"].value = bg
-        prog["u_has_video"].value = has_video
+        corners = self.corners_for(num, w, h)
+        try:
+            hinv = warp.output_to_image_uniform(corners)
+        except ValueError:
+            hinv = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+        has_video = self.video_tex is not None
+        idx = self.nums.index(num) if num in self.nums else 0
+        period = max(1, round(self.refresh_hz * 2))
+        values = {
+            "u_hinv": hinv,
+            "u_flip": (-1.0 if p["flip_x"] else 1.0, -1.0 if p["flip_y"] else 1.0),
+            "u_rot": math.radians(float(p["rotate_deg"])),
+            "u_bg": bg,
+            "u_gain": self.gain.get(num, 1.0) ** (1 / 2.2),   # light output -> signal (gamma 2.2)
+            "u_mode": 1 if self.test else 0,
+            "u_tint": TINTS[idx % len(TINTS)],
+            "u_sweep": (self.frame_no % period) / period,
+            "u_has_video": has_video,
+            "u_video": 0,
+        }
+        for name, value in values.items():
+            member = prog.get(name, None)
+            if member is not None:
+                member.value = value
         if has_video:
             self.video_tex.use(0)
-            prog["u_video"].value = 0
         self.vao.render(self.mgl.TRIANGLE_STRIP)
+
+    def edit_help(self, num: int) -> str:
+        unsaved = "   * NOT SAVED - Ctrl+S *" if num in self.dirty else ""
+        return "\n".join([
+            f"ALIGN monitor {num}{unsaved}",
+            f"corner: {CORNER_NAMES[self.sel_corner]}   (Tab = next corner, or drag any corner with the mouse)",
+            "arrows = move corner 1 px   Shift+arrows = 10 px",
+            f"+ / -  = brightness {self.gain.get(num, 1.0):.2f}    R = reset this monitor",
+            "Ctrl+S = save    E or Esc = done    1-9 = other monitor",
+        ])
 
     def stats_text(self) -> str:
         from .stats import fmt_time
@@ -461,8 +810,10 @@ class DomePlayer:
         pos = self.prop("time-pos")
         dur = self.prop("duration")
         paused = " [PAUSED]" if self.prop("pause") else ""
+        showing = "all" if self.solo is None else f"only {self.solo}"
+        flags = (" TEST" if self.test else "") + (" ALIGN" if self.edit else "")
         return "\n".join([
-            f"DomePlayer  phase 1{paused}",
+            f"DomePlayer{paused}",
             f"render fps   {st.render_fps:5.1f}   (display {self.refresh_hz:.0f} Hz, vsync {'on' if self.vsync else 'off'})",
             f"video fps    {st.video_fps:5.1f}   (file {container_fps:.3f})",
             f"max gap      {st.max_frame_gap_ms:5.0f} ms between video frames (2 s window)",
@@ -472,9 +823,9 @@ class DomePlayer:
             f"video        {codec} {vw}x{vh} -> texture {tex[0]}x{tex[1]}",
             f"time         {fmt_time(pos)} / {fmt_time(dur)}   loop #{self.loop_count}",
             f"gpu          {self.gpu_name}",
-            f"monitor      {self.monitor.number} {self.monitor.device}",
+            f"outputs      {', '.join(map(str, self.nums))}   showing {showing}{flags}",
             f"uptime       {fmt_time(st.uptime)}",
-            "keys         F1 stats | Space pause | Home restart | Esc quit",
+            "keys         F1 stats | T test grid | 1-9 one output, 0 all | E align | Space pause | Esc quit",
         ])
 
     def shutdown(self):
@@ -534,7 +885,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     log_file = setup_logging(cfg["log_level"])
-    log.info("DomePlayer starting, config from %s, log %s", cfg_path or APP_DIR / "config.json", log_file)
+    log.info("DomePlayer starting, config from %s, log %s", cfg["_config_path"], log_file)
     try:
         app = DomePlayer(cfg)
         app._mpv = import_mpv()

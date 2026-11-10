@@ -127,8 +127,24 @@ def main() -> int:
 
     ttk.Button(frm, text="โชว์เลขจอ", command=identify).grid(row=3, column=1, padx=(4, 14))
 
+    stack = tk.BooleanVar(value=cfg["stack"]["enabled"])
+    stack_list = tk.StringVar(value=", ".join(map(str, cfg["stack"]["monitors"])))
+    srow = ttk.Frame(frm)
+    srow.grid(row=4, column=0, columnspan=2, sticky="w", padx=14, pady=(8, 0))
+    stack_entry = ttk.Entry(srow, textvariable=stack_list, width=22)
+
+    def on_stack():
+        on = stack.get()
+        mon_box.configure(state="disabled" if on else "readonly")
+        stack_entry.configure(state="normal" if on else "disabled")
+
+    ttk.Checkbutton(srow, text="ฉายภาพเดียวกันทุกจอ (stack)   จอ:", variable=stack,
+                    command=on_stack).pack(side="left")
+    stack_entry.pack(side="left", padx=6)
+    on_stack()
+
     opts = ttk.Frame(frm)
-    opts.grid(row=4, column=0, columnspan=2, sticky="w", **pad)
+    opts.grid(row=5, column=0, columnspan=2, sticky="w", **pad)
     ttk.Checkbutton(opts, text="เต็มจอ", variable=fullscreen).pack(side="left", padx=(0, 16))
     ttk.Checkbutton(opts, text="เปิดเสียง", variable=audio).pack(side="left", padx=(0, 16))
     ttk.Checkbutton(opts, text="โชว์หน้าสถิติ (F1)", variable=stats).pack(side="left")
@@ -145,6 +161,14 @@ def main() -> int:
         r["display"]["fullscreen"] = bool(fullscreen.get())
         r.setdefault("stats", {})["show_on_start"] = bool(stats.get())
         try:
+            mon_list = [int(x) for x in stack_list.get().replace(" ", ",").split(",") if x.strip()]
+        except ValueError:
+            messagebox.showwarning("DomePlayer", "เลขจอต้องเป็นตัวเลขคั่นด้วยจุลภาค เช่น 3, 6, 2, 4, 5, 1")
+            return
+        r.setdefault("stack", {})["enabled"] = bool(stack.get())
+        if mon_list:
+            r["stack"]["monitors"] = mon_list
+        try:
             _write_raw(r)
             load_config()  # same checks the player does, so errors show here
         except (OSError, ConfigError) as e:
@@ -157,9 +181,9 @@ def main() -> int:
             return
         root.destroy()
 
-    ttk.Button(frm, text="▶  เล่น", command=play).grid(row=5, column=0, columnspan=2, sticky="we", padx=14, pady=(10, 4), ipady=8)
-    ttk.Label(frm, text="ระหว่างเล่น:  F1 สถิติ  |  Space หยุด/เล่น  |  Home เริ่มใหม่  |  Esc ปิด",
-              foreground="#555").grid(row=6, column=0, columnspan=2, **pad)
+    ttk.Button(frm, text="▶  เล่น", command=play).grid(row=6, column=0, columnspan=2, sticky="we", padx=14, pady=(10, 4), ipady=8)
+    ttk.Label(frm, text="ระหว่างเล่น:  F1 สถิติ  |  T ตารางทดสอบ  |  1-9 ดูทีละจอ, 0 ทุกจอ  |  E ปรับมุม  |  Esc ปิด",
+              foreground="#555").grid(row=7, column=0, columnspan=2, **pad)
 
     root.bind("<Return>", lambda _e: play())
     root.mainloop()
