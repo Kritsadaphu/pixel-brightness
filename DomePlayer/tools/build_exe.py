@@ -9,6 +9,8 @@ The result needs no Python and no internet. Copy the whole dist/DomePlayer folde
 """
 from __future__ import annotations
 
+import json
+import re
 import shutil
 import subprocess
 import sys
@@ -19,36 +21,51 @@ DIST = APP_DIR / "dist"
 OUT = DIST / "DomePlayer"
 DLL = APP_DIR / "lib" / "libmpv-2.dll"
 
-QUICKSTART = """DomePlayer - วิธีใช้ (ไม่ต้องติดตั้ง ไม่ต้องใช้เน็ต)
+QUICKSTART = """DomePlayer {VERSION} - วิธีใช้ (ไม่ต้องติดตั้ง ไม่ต้องใช้เน็ต)
+(เลขเวอร์ชันอยู่บนหัวหน้าต่างเริ่มต้นด้วย ถ้าไม่ใช่ {VERSION} แปลว่าเปิดโฟลเดอร์เก่า)
 
-1. ก๊อปทั้งโฟลเดอร์นี้ไปไว้ที่ C:\\DomePlayer
+1. แตกไฟล์ zip ก่อน แล้วก๊อปทั้งโฟลเดอร์ DomePlayer ไปไว้ที่ C:\\DomePlayer
+   (ห้ามลาก DomePlayer.exe ออกจากโฟลเดอร์ ทำ shortcut ได้)
 2. ดับเบิลคลิก DomePlayer.exe
-   (ถ้าขึ้นจอสีฟ้า "Windows protected your PC" กด More info แล้วกด Run anyway)
+   (ถ้าขึ้นจอสีฟ้า "Windows protected your PC" กด More info แล้วกด Run anyway หรือถ้ามีปุ่ม Run ให้กด Run)
 3. กด "เลือกไฟล์…" แล้วเลือกวิดีโอ
-4. เลือกจอ (กด "โชว์เลขจอ" ถ้าไม่แน่ใจว่าจอไหนเลขอะไร)
-5. กด "เล่น"
+4. โดม 6 เครื่อง: ติ๊ก "ใช้หลายจอพร้อมกัน" ไว้ แล้วตรวจเลขในช่อง "จอ:" ให้ตรงกับที่ปุ่ม "โชว์เลขจอ" แสดง
+   (ช่องเลือกจอด้านบนใช้เฉพาะตอนเล่นจอเดียว)
+5. กด "ตรวจความพร้อม" แก้ข้อที่ขึ้น ❌ ก่อน แล้วกด "เล่น"
 
 ระหว่างเล่น:  F1 = หน้าสถิติ   Space = หยุด/เล่น   Home = เริ่มใหม่   Esc = ปิด
 หลายจอ:  T = ตาราง/ขาว/ปิด   1-9 = ดูทีละจอ   0 = ทุกจอ
-ปรับอัตโนมัติด้วยกล้อง R50 (ตั้งกล้องกลางห้อง หันขึ้นโดม):
-   K แล้ว K = ถ่ายลายและคำนวณ   U = เปิด/ปิดผล
-   C = ดูภาพกล้อง + กำหนดขอบวงกลมโดม (ลูกศร เลื่อน, +/- ขนาด, , . หมุนด้านหน้า, Ctrl+S บันทึก)
-(ละเอียดใน README.md หัวข้อ "โหมดโดม")
+ปรับอัตโนมัติด้วยกล้อง R50 (ตั้งกล้องกลางห้อง หันขึ้นโดม กล้องโหมด M ค่าแสงคงที่ ห้ามใช้ Auto):
+   1) กด T สองครั้ง (ขาวทุกเครื่อง) แล้วกด C ดูภาพกล้อง: ต้องเห็นขอบโดมครบทั้งวงในภาพ
+      ถ้าขอบโดมล้นภาพ ให้วางกล้องต่ำลงหรือใช้เลนส์กว้างขึ้น (ส่วนที่กล้องไม่เห็นจะเป็นสีดำ)
+   2) กด K แล้ว K = ถ่ายลายและคำนวณ (2-3 นาที ห้องมืด ห้ามขยับกล้อง)   U = เปิด/ปิดผล
+   3) กด C = กำหนดขอบวงกลมโดม (ลูกศร เลื่อน, +/- ขนาด, Ctrl+S บันทึก)
+      , . = หมุนเส้น FRONT ไปทางที่ต้องการให้เป็น "ด้านหน้า" ของวิดีโอ (ขอบล่างของไฟล์วิดีโอ)
+(ละเอียดใน คู่มือ-README.txt หัวข้อ "โหมดโดม")
 
-ก่อนใช้งานจริงทุกครั้งที่ไปหน้างาน: กด "ตรวจความพร้อม" แก้ข้อที่ขึ้น ❌ ก่อน
 calibrate แล้วแย่ลง: กด "ย้อนค่า calibrate…" เลือกชุดก่อนหน้า
-ติ๊ก "เปิดเล่นเองทุกครั้งที่เปิดเครื่อง" = บูตเครื่องแล้วเล่นเอง ค้าง/ปิดไปเองจะเปิดใหม่เอง (Esc = ปิดจริง)
+เปิดเองตอนเปิดเครื่อง: ติ๊ก "เปิดเล่นเองทุกครั้งที่เปิดเครื่อง" แล้วกด "เล่น" 1 ครั้ง
+   = บูตเครื่องแล้วเล่นเอง ค้าง/ปิดไปเองจะเปิดใหม่เอง (Esc = ปิดจริง)
+   จะเลิก: เอาติ๊กออกแล้วกด "เล่น" อีก 1 ครั้ง
+   (อย่าสร้าง shortcut "DomePlayer.exe --play" หรือ Task Scheduler เอง จะไม่มีตัวเฝ้า)
+กด "เล่น" ตอนที่โปรแกรมเล่นอยู่แล้ว: โปรแกรมจะถามว่าจะปิดตัวเดิมแล้วเริ่มใหม่ไหม
 เปิดโปรเจคเตอร์ให้ครบ 6 เครื่องก่อน แล้วค่อยเปิดเครื่อง Dell
+ตั้ง "จอหลัก" ของ Windows เป็นจอที่อยู่บนการ์ดจอใบที่ต่อโปรเจคเตอร์ 4 เครื่อง (ปุ่มตรวจความพร้อมจะบอกให้)
 ปิด Screensaver ของ Windows (Personalize > Lock screen > Screen saver > None)
 ถ้ามีปัญหา กด "เก็บข้อมูลส่งช่าง (zip)" แล้วส่งไฟล์ zip บน Desktop มาให้ดู
-ค่าตั้งละเอียดอยู่ใน config.json (เปิดด้วย Notepad) ดูคำอธิบายใน README.md
-เล่นทันทีโดยไม่ขึ้นหน้าต่างเลือกไฟล์ (เช่นตอนเปิดเครื่อง): DomePlayer.exe --play
+ค่าตั้งละเอียดอยู่ใน config.json (เปิดด้วย Notepad) ดูคำอธิบายใน คู่มือ-README.txt
+   ถ้าแก้ config.json แล้วพัง: มีสำเนาอัตโนมัติชื่อ config.json.bak อยู่ข้างกัน
 """
 
 
 def main() -> int:
     if not DLL.exists():
         print(f"missing {DLL} - run: python tools/get_libmpv.py")
+        return 1
+    version = re.search(r'__version__ = "([^"]+)"', (APP_DIR / "domeplayer" / "__init__.py").read_text()).group(1)
+    c = json.loads((APP_DIR / "config.json").read_text(encoding="utf-8-sig"))
+    if not c["display"]["fullscreen"] or c["calibration"].get("simulate") or c["stats"]["show_on_start"]:
+        print("config.json is not the show configuration (fullscreen on, simulate off, stats off) - not building")
         return 1
     work = DIST / "_build"
     cmd = [
@@ -70,9 +87,10 @@ def main() -> int:
     (OUT / "lib").mkdir(exist_ok=True)
     shutil.copyfile(DLL, OUT / "lib" / DLL.name)
     (OUT / "logs").mkdir(exist_ok=True)
-    for name in ("config.json", "README.md"):
-        shutil.copyfile(APP_DIR / name, OUT / name)
-    (OUT / "อ่านก่อน-README.txt").write_text(QUICKSTART, encoding="utf-8-sig")
+    shutil.copyfile(APP_DIR / "config.json", OUT / "config.json")
+    # .md has no program to open it on a clean Windows: ship the manual as .txt (Notepad)
+    (OUT / "คู่มือ-README.txt").write_text((APP_DIR / "README.md").read_text(encoding="utf-8"), encoding="utf-8-sig")
+    (OUT / "อ่านก่อน-README.txt").write_text(QUICKSTART.replace("{VERSION}", version), encoding="utf-8-sig")
     shutil.rmtree(work, ignore_errors=True)
 
     test = subprocess.run([str(OUT / "DomePlayer.exe"), "--self-test"], cwd=str(OUT))

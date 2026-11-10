@@ -39,7 +39,8 @@ class Report:
         n_fail = sum(it["status"] == FAIL for it in self.items)
         n_warn = sum(it["status"] == WARN for it in self.items)
         lines += ["", (f"สรุป: ไม่ผ่าน {n_fail} ข้อ, ระวัง {n_warn} ข้อ" if n_fail or n_warn
-                       else "สรุป: ผ่านทุกข้อ พร้อมใช้งาน")]
+                       else "สรุป: ผ่านทุกข้อที่ตรวจได้  ขั้นสุดท้าย: กด เล่น แล้วกด F1 ดูหน้าสถิติสัก 2 นาที "
+                            "(render fps ต้องเท่า Hz ของจอ, missed vsync และ dropped ต้องไม่เพิ่ม)")]
         return "\n".join(lines)
 
 
@@ -74,7 +75,8 @@ def check_gpus(rep: Report) -> None:
     bad = [d for d in data if d.get("Status") not in ("OK", None) or (d.get("ConfigManagerErrorCode") or 0) != 0]
     basic = [d for d in data if "basic" in str(d.get("Name", "")).lower()]
     nvidia = [d for d in data if "nvidia" in str(d.get("Name", "")).lower() or "quadro" in str(d.get("Name", "")).lower()]
-    if bad or basic:
+    bad_nv = [d for d in nvidia if d in bad]
+    if bad_nv or ((bad or basic) and len(nvidia) - len(bad_nv) < 2):
         rep.add(FAIL, "การ์ดจอ: มีการ์ดที่ทำงานผิดปกติ หรือไดรเวอร์ไม่ได้ลง",
                 "\n".join(names) + "\nแก้: ดู Device Manager > Display adapters (ลงไดรเวอร์ NVIDIA ใหม่ / เช็กการ์ด)")
     elif len(nvidia) < 2:
@@ -139,6 +141,16 @@ def check_monitors(rep: Report, cfg: dict) -> list:
                 "กด 'โชว์เลขจอ' ดูว่าเลขจอเปลี่ยนไปหรือไม่")
     else:
         rep.add(OK, f"เจอจอครบ {len(want)} จอ ({', '.join(map(str, want))})", listing)
+    if not cfg["stack"]["enabled"] and len(mons) > 1:
+        rep.add(WARN, f"ตั้งให้ฉายจอเดียว (จอ {want[0]}) ทั้งที่เครื่องมี {len(mons)} จอ",
+                "ถ้าเป็นห้องโดม: ติ๊ก 'ใช้หลายจอพร้อมกัน' ในหน้าต่างเริ่มต้น แล้วกดตรวจใหม่")
+    if not cfg["display"]["fullscreen"]:
+        rep.add(WARN, "ไม่ได้ตั้งเต็มจอ ภาพจะอยู่ในหน้าต่างเล็ก", "แก้: ติ๊ก 'เต็มจอ' ในหน้าต่างเริ่มต้น")
+    extra = [m.number for m in mons if m.number not in want]
+    if cfg["stack"]["enabled"] and extra:
+        rep.add(WARN, f"จอ {', '.join(map(str, sorted(extra)))} ต่ออยู่แต่ไม่อยู่ในรายการจอที่ใช้ (จะเห็นเป็นหน้าจอ Windows)",
+                "ถ้าเป็นโปรเจคเตอร์โดม ให้เพิ่มเลขนี้ในช่อง 'จอ:' ถ้าเป็นจอคนคุมไม่ต้องทำอะไร")
+    _check_cards(rep, mons, want)
     used = [by[n] for n in want if n in by]
     if used:
         sizes = {(m.width, m.height) for m in used}
@@ -146,10 +158,11 @@ def check_monitors(rep: Report, cfg: dict) -> list:
         if len(sizes) > 1:
             rep.add(WARN, "ความละเอียดของแต่ละจอไม่เท่ากัน",
                     ", ".join(f"จอ {m.number} {m.width}x{m.height}" for m in used) +
-                    "\nแนะนำ: ตั้งเป็น 1920x1080 ทุกจอ (Display settings) แล้วค่อย calibrate")
+                    "\nแนะนำ: ตั้งทุกจอเป็นความละเอียดจริงของโปรเจคเตอร์ (ค่า Recommended ใน Display settings) "
+                    "ให้เท่ากันทุกจอ แล้วค่อย calibrate")
         else:
             w, h = next(iter(sizes))
-            rep.add(OK if (w, h) == (1920, 1080) else WARN, f"ความละเอียดทุกจอ {w}x{h}")
+            rep.add(OK, f"ความละเอียดทุกจอ {w}x{h}")
         if len(rates) > 1:
             rep.add(WARN, f"รีเฟรชเรตไม่เท่ากัน {sorted(rates)} Hz",
                     "แนะนำ: ตั้งทุกจอเป็น 60 Hz เท่ากัน (Display settings > Advanced display)")
@@ -168,6 +181,39 @@ def check_monitors(rep: Report, cfg: dict) -> list:
             rep.add(WARN, "จอโดมเรียงกันไม่เป็นสี่เหลี่ยม (มีช่องว่าง) หน้าต่างจะใหญ่กว่าที่จำเป็น",
                     "แนะนำ: ใน Display settings จัดจอโดมให้อยู่แถวเดียวกัน ขอบบนตรงกัน")
     return mons
+
+
+def _check_cards(rep: Report, mons: list, want: list) -> None:
+    """Which projector hangs on which graphics card. The picture is drawn by ONE card (the one
+    with the Windows main display) and copied to the other, so the main display belongs on the
+    card that drives most of the dome."""
+    if os.name != "nt":
+        return
+    try:
+        from .monitors import adapters
+        ad = adapters()
+    except Exception as e:  # noqa: BLE001
+        log.warning("could not read the graphics card of each monitor: %s", e)
+        return
+    cards: dict[str, list[int]] = {}
+    names: dict[str, str] = {}
+    for n in want:
+        if n in ad:
+            cards.setdefault(ad[n][1], []).append(n)
+            names[ad[n][1]] = ad[n][0]
+    if len(cards) < 2:
+        return
+    listing = "\n".join(f"การ์ดใบที่ {i + 1} ({names[k]}): จอ {', '.join(map(str, v))}"
+                        for i, (k, v) in enumerate(cards.items()))
+    primary = next((m.number for m in mons if m.primary), None)
+    most = max(cards.values(), key=len)
+    mine = cards.get(ad[primary][1], []) if primary in ad else []
+    if len(mine) < len(most):
+        rep.add(WARN, f"จอหลักของ Windows (จอ {primary}) อยู่บนการ์ดจอใบที่ต่อโปรเจคเตอร์น้อยกว่า",
+                listing + f"\nแนะนำ: ตั้งจอ {most[0]} เป็นจอหลัก (Display settings > คลิกจอ {most[0]} > "
+                "ติ๊ก Make this my main display) ภาพจะลื่นกว่า แล้วกดตรวจใหม่")
+    else:
+        rep.add(OK, "จอหลักของ Windows อยู่บนการ์ดจอใบที่ต่อโปรเจคเตอร์มากที่สุด", listing)
 
 
 def _decode_test(path: Path, hwdec: str, limit: int) -> dict:
@@ -216,9 +262,13 @@ def _decode_test(path: Path, hwdec: str, limit: int) -> dict:
                 frames += 1
                 tp = player.time_pos
                 if tp is not None and p0 is None and frames > 10:
-                    p0, w0 = tp, now
+                    p0, w0, last, played = tp, now, tp, 0.0
+                elif p0 is not None and tp is not None:
+                    if tp > last:          # the jump back to 0 when the file loops is not counted
+                        played += tp - last
+                    last = tp
                 if p0 is not None and now - w0 > 5:
-                    speed = (tp - p0) / (now - w0) if tp and tp > p0 else 0.0
+                    speed = played / (now - w0)
                     return {"speed": speed, "hw": player.hwdec_current or "no", "w": player.dwidth,
                             "h": player.dheight, "codec": player.video_format or "?",
                             "fps": player.container_fps or 0, "tex": (fbo.width, fbo.height)}
@@ -341,9 +391,15 @@ def check_calibration(rep: Report, cfg: dict, mons: list) -> None:
         return
     try:
         info = json.loads(f.read_text(encoding="utf-8"))
+        from .calib import solve
+        solve.load(folder)            # the player needs every <n>_mesh.npy / <n>_gain.npy too
     except Exception as e:  # noqa: BLE001
-        rep.add(FAIL, "ไฟล์ calibrate เสีย", f"{e}\nแก้: กด 'ย้อนค่า calibrate…' เลือกค่าก่อนหน้า")
+        rep.add(FAIL, "ไฟล์ calibrate เสีย หรือไม่ครบ (ตอนเล่นจะไม่ถูกใช้)",
+                f"{e}\nแก้: กด 'ย้อนค่า calibrate…' เลือกค่าก่อนหน้า")
         return
+    if not cfg["calibration"]["use"] or cfg["calibration"]["simulate"]:
+        rep.add(WARN, "config.json: calibration.use ปิดอยู่ หรือ calibration.simulate เปิดอยู่",
+                "ค่า calibrate / กล้องจริงจะไม่ถูกใช้  แก้: ตั้ง use เป็น true และ simulate เป็น false")
     by = {m.number: m for m in mons}
     wrong = [f"จอ {n}: ทำไว้ {o['size'][0]}x{o['size'][1]} ตอนนี้ {by[int(n)].width}x{by[int(n)].height}"
              for n, o in info.get("outputs", {}).items()
@@ -377,8 +433,12 @@ def check_misc(rep: Report) -> None:
                 rep.add(OK, "Screensaver ปิดอยู่")
         except Exception:  # noqa: BLE001
             pass
-    from .watchdog import autostart_enabled
-    if autostart_enabled():
+    from .watchdog import autostart_command, autostart_enabled, autostart_is_this_folder, autostart_target
+    if autostart_enabled() and not autostart_is_this_folder():
+        rep.add(FAIL, "เปิดเล่นเองตอนเปิดเครื่อง: ตั้งไว้กับ DomePlayer ที่อยู่โฟลเดอร์อื่น (ย้ายโฟลเดอร์หลังตั้ง?)",
+                f"ที่ตั้งไว้: {autostart_target()}\nโฟลเดอร์นี้: {autostart_command()}\n"
+                "แก้: ติ๊ก 'เปิดเล่นเองทุกครั้งที่เปิดเครื่อง' แล้วกด เล่น จากโฟลเดอร์นี้ 1 ครั้ง")
+    elif autostart_enabled():
         rep.add(OK, "เปิดเล่นเองตอนเปิดเครื่อง: เปิดอยู่")
     else:
         rep.add(WARN, "เปิดเล่นเองตอนเปิดเครื่อง: ปิดอยู่", "ติ๊ก 'เปิดเล่นเองทุกครั้งที่เปิดเครื่อง' แล้วกดเล่น")

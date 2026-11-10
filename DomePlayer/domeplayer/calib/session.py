@@ -192,7 +192,7 @@ class CalibrationSession:
             if self.black is None:
                 self.black = g
                 log.info("black frame: mean %.1f, max %.1f", g.mean(), g.max())
-                if g.max() > 200:
+                if np.percentile(g, 99.9) > 200:   # a few bright pixels (LED, lamp) are fine
                     raise RuntimeError("camera picture is too bright with all projectors black - "
                                        "darken the room or lower the camera exposure")
             else:
@@ -210,7 +210,7 @@ class CalibrationSession:
                                    "Or raise the camera exposure.")
             if clipped > 0.02:
                 raise RuntimeError(f"monitor {n}: {clipped*100:.0f}% of its picture is over-exposed in the "
-                                   "camera - lower the camera exposure (ISO/shutter) and try again")
+                                   "camera - set the camera to MANUAL exposure with fixed ISO, lower ISO/shutter and try again")
             self.white[n] = g
             self.code[n] = [np.zeros(g.shape, np.uint32), np.zeros(g.shape, np.uint32)]
             self.bad[n] = diff < max(12.0, peak * 0.12)

@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import copy
 import json
+import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -61,7 +63,7 @@ DEFAULTS: dict = {
         "mipmaps": True,
     },
     "stats": {
-        "show_on_start": True,
+        "show_on_start": False,
         "key": "F1",
         "font_size": 22,
     },
@@ -88,6 +90,7 @@ DEFAULTS: dict = {
         "camera": 0,             # webcam number; change with [ and ] in the camera preview
         "camera_width": 1920,
         "camera_height": 1080,
+        "camera_fourcc": "",     # "" = let Windows choose; "MJPG" if the camera preview is slow
         "settle_ms": 450,        # shortest wait after each pattern before taking the picture
         "measure_delay": True,   # measure the camera delay first and wait longer if needed
         "average": 2,            # pictures averaged per pattern
@@ -187,6 +190,29 @@ def load_config(path: Path | None = None) -> dict:
            "render.video_texture_size must be 0 or a positive number")
     _check(isinstance(s["font_size"], int) and 8 <= s["font_size"] <= 200, "stats.font_size must be 8-200")
     _check(isinstance(v["cuda_device"], int), "video.cuda_device must be a number (-1 = auto)")
+    for sec, key in (("video", "loop"), ("video", "audio"), ("display", "fullscreen"), ("display", "vsync"),
+                     ("display", "always_on_top"), ("display", "hide_cursor"), ("preview", "flip_x"),
+                     ("preview", "flip_y"), ("render", "mipmaps"), ("stats", "show_on_start"),
+                     ("stack", "enabled"), ("calibration", "use"), ("calibration", "simulate"),
+                     ("calibration", "measure_delay"), ("mask", "enabled")):
+        _check(isinstance(cfg[sec][key], bool), f"{sec}.{key} must be true or false (no quotes)")
+
+    def _num(x) -> bool:
+        return isinstance(x, (int, float)) and not isinstance(x, bool)
+
+    for sec, key in (("video", "volume"), ("display", "refresh_rate"), ("preview", "zoom"),
+                     ("preview", "rotate_deg"), ("calibration", "camera"), ("calibration", "camera_width"),
+                     ("calibration", "camera_height"), ("calibration", "settle_ms"), ("calibration", "average"),
+                     ("calibration", "skip_bits"), ("calibration", "simulate_delay_ms")):
+        _check(_num(cfg[sec][key]), f"{sec}.{key} must be a number (no quotes)")
+    _check(isinstance(cfg["preview"]["background"], list) and len(cfg["preview"]["background"]) == 3
+           and all(_num(x) for x in cfg["preview"]["background"]),
+           "preview.background must be [r, g, b] with values 0-255")
+    for sec, key in (("video", "hwdec"), ("stats", "key"), ("keys", "quit"), ("keys", "pause"),
+                     ("keys", "restart"), ("calibration", "folder"), ("calibration", "camera_fourcc"),
+                     ("log_level", None)):
+        val = cfg[sec] if key is None else cfg[sec][key]
+        _check(isinstance(val, str), f"{sec}{'.' + key if key else ''} must be text in quotes")
 
     st = cfg["stack"]
     mons = st["monitors"]
@@ -227,14 +253,30 @@ def load_config(path: Path | None = None) -> dict:
     return cfg
 
 
+def write_config(config_path: str | Path, raw: dict) -> None:
+    """Replace config.json in one step. The new text is on the disk before the old file is
+    replaced (power cut = old or new file, never an empty one) and the last readable
+    config.json is kept as config.json.bak."""
+    path = Path(config_path)
+    tmp = path.with_suffix(".json.tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(json.dumps(raw, indent=2, ensure_ascii=False) + "\n")
+        f.flush()
+        os.fsync(f.fileno())
+    try:
+        json.loads(path.read_text(encoding="utf-8-sig"))
+        shutil.copyfile(path, path.with_suffix(".json.bak"))
+    except (OSError, ValueError):
+        pass                      # no config.json yet, or it is damaged: keep the older .bak
+    os.replace(tmp, path)
+
+
 def save_setting(config_path: str | Path, section: str, key: str, value) -> None:
     """Change one value in config.json, keeping everything else as it is."""
     path = Path(config_path)
     raw = json.loads(path.read_text(encoding="utf-8-sig")) if path.exists() else {}
     raw.setdefault(section, {})[key] = value
-    tmp = path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    tmp.replace(path)
+    write_config(path, raw)
 
 
 def save_outputs(config_path: str | Path, outputs: dict) -> None:
@@ -245,6 +287,4 @@ def save_outputs(config_path: str | Path, outputs: dict) -> None:
     for num, o in outputs.items():
         merged.setdefault(str(num), {}).update(o)
     raw["outputs"] = dict(sorted(merged.items(), key=lambda kv: int(kv[0])))
-    tmp = path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    tmp.replace(path)
+    write_config(path, raw)

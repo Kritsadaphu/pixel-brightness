@@ -73,15 +73,29 @@ def restore(cal_folder: Path, config_path: Path, src: Path) -> None:
     cal_folder, src = Path(cal_folder), Path(src)
     if not (src / "calibration.json").exists():
         raise RuntimeError(f"{src} is not a calibration backup")
-    backup(cal_folder, config_path, "before restore")
+    # copy the chosen backup out FIRST: backup() below prunes the oldest one, which may be 'src'
     tmp = cal_folder.with_name(cal_folder.name + ".restoring")
     shutil.rmtree(tmp, ignore_errors=True)
     shutil.copytree(src, tmp, ignore=lambda _d, names: [n for n in names if n in _SKIP])
+    try:
+        old_cfg = json.loads((src / "config.json").read_text(encoding="utf-8-sig"))
+    except Exception:  # noqa: BLE001
+        old_cfg = {}
+    backup(cal_folder, config_path, "before restore")
     old = cal_folder.with_name(cal_folder.name + ".old")
     shutil.rmtree(old, ignore_errors=True)
     if cal_folder.exists():
         cal_folder.rename(old)
-    tmp.rename(cal_folder)
+    try:
+        tmp.rename(cal_folder)
+    except OSError:
+        time.sleep(0.5)                     # antivirus / indexer still holding the folder
+        try:
+            tmp.rename(cal_folder)
+        except OSError:
+            if old.exists():
+                old.rename(cal_folder)      # put the current calibration back
+            raise
     shutil.rmtree(old, ignore_errors=True)
 
     # settings that belong to that calibration
@@ -94,15 +108,10 @@ def restore(cal_folder: Path, config_path: Path, src: Path) -> None:
     if info.get("mode") == "dome" and info.get("circle"):
         cal["dome_circle"] = [round(float(x), 5) for x in info["circle"]]
         cal["dome_front_deg"] = float(info.get("front_deg") or 0.0)
-    try:
-        old_cfg = json.loads((src / "config.json").read_text(encoding="utf-8-sig"))
-    except Exception:  # noqa: BLE001
-        old_cfg = {}
     if "outputs" in old_cfg:
         raw["outputs"] = old_cfg["outputs"]
     if info.get("monitors"):
         raw.setdefault("stack", {})["monitors"] = info["monitors"]
-    t = cfg_path.with_suffix(".json.tmp")
-    t.write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    t.replace(cfg_path)
+    from .config import write_config
+    write_config(cfg_path, raw)
     log.info("calibration restored from %s", src)

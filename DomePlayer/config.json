@@ -35,7 +35,7 @@
     "mipmaps": true
   },
   "stats": {
-    "show_on_start": true,
+    "show_on_start": false,
     "key": "F1",
     "font_size": 22
   },

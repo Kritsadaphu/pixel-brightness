@@ -60,6 +60,34 @@ def list_monitors() -> list[MonitorInfo]:
     return out
 
 
+def adapters() -> dict[int, tuple[str, str]]:
+    """Windows: display number -> (graphics card name, id of that card). Two cards of the same
+    model have different ids, so this tells which projector hangs on which card."""
+    import ctypes
+    from ctypes import wintypes
+
+    class DISPLAY_DEVICEW(ctypes.Structure):
+        _fields_ = [("cb", wintypes.DWORD), ("DeviceName", wintypes.WCHAR * 32),
+                    ("DeviceString", wintypes.WCHAR * 128), ("StateFlags", wintypes.DWORD),
+                    ("DeviceID", wintypes.WCHAR * 128), ("DeviceKey", wintypes.WCHAR * 128)]
+
+    out: dict[int, tuple[str, str]] = {}
+    user32 = ctypes.windll.user32
+    i = 0
+    while i < 64:
+        dd = DISPLAY_DEVICEW()
+        dd.cb = ctypes.sizeof(dd)
+        if not user32.EnumDisplayDevicesW(None, i, ctypes.byref(dd), 0):
+            break
+        i += 1
+        num = re.search(r"DISPLAY(\d+)", dd.DeviceName)
+        if not num or not dd.StateFlags & 1:          # 1 = attached to the desktop
+            continue
+        card = re.search(r"\{[0-9A-Fa-f-]+\}", dd.DeviceKey)
+        out[int(num.group(1))] = (dd.DeviceString, card.group(0).lower() if card else dd.DeviceString)
+    return out
+
+
 def find_monitor(number: int) -> tuple[MonitorInfo | None, list[MonitorInfo]]:
     mons = list_monitors()
     for m in mons:

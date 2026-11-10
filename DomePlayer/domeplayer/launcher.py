@@ -9,13 +9,17 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
-from .config import APP_DIR, ConfigError, load_config
+from . import __version__
+from .config import APP_DIR, ConfigError, load_config, write_config
 
 CONFIG = APP_DIR / "config.json"
+CHECK_LIMIT_S = 240      # the readiness check normally needs 30-90 s
 VIDEO_TYPES = [("Video files", "*.mp4 *.mov *.mkv *.m4v *.avi *.ts *.webm"), ("All files", "*.*")]
 def _fallback_dirs() -> list[str]:
     dirs = ["C:/YDome/data/videos", "C:/YDome"]
@@ -38,7 +42,18 @@ def _read_raw() -> dict:
 
 
 def _write_raw(raw: dict) -> None:
-    CONFIG.write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    """Check the settings first (same checks as the player); config.json is only replaced when
+    they are fine. Raises ConfigError / OSError and then leaves config.json as it was."""
+    tmp = CONFIG.with_name("config.check.json")
+    tmp.write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    try:
+        load_config(tmp)
+    finally:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+    write_config(CONFIG, raw)
 
 
 def _monitors() -> list[tuple[int, str]]:
@@ -70,7 +85,7 @@ def main() -> int:
     from tkinter import filedialog, messagebox, ttk
 
     root = tk.Tk()
-    root.title("DomePlayer")
+    root.title(f"DomePlayer {__version__}")
     root.resizable(False, False)
     font = ("Leelawadee UI", 11)
     big = ("Leelawadee UI", 13, "bold")
@@ -80,10 +95,15 @@ def main() -> int:
     try:
         raw = _read_raw()
         cfg = load_config()
-    except (json.JSONDecodeError, ConfigError) as e:
+    except (ValueError, OSError, ConfigError) as e:
         if not messagebox.askyesno(
-                "DomePlayer", f"config.json เสีย:\n{e}\n\nสร้าง config.json ใหม่เป็นค่าเริ่มต้นไหม?"):
+                "DomePlayer", f"config.json เสีย:\n{e}\n\nสร้าง config.json ใหม่เป็นค่าเริ่มต้นไหม?\n"
+                              "(ไฟล์เดิมจะถูกเก็บไว้เป็น config.broken-วันที่.json)"):
             return 2
+        try:      # keep the broken file: it still holds the projector alignment and other settings
+            shutil.copyfile(CONFIG, CONFIG.with_name(time.strftime("config.broken-%Y%m%d-%H%M%S.json")))
+        except OSError:
+            pass
         raw = {}
         _write_raw(raw)
         cfg = load_config()
@@ -156,14 +176,20 @@ def main() -> int:
     ttk.Checkbutton(frm, text="เปิดเล่นเองทุกครั้งที่เปิดเครื่อง (และเปิดใหม่เองถ้าโปรแกรมค้าง/ปิดไปเอง)",
                     variable=autostart).grid(row=8, column=0, columnspan=2, sticky="w", padx=14, pady=(0, 4))
 
-    def play():
+    def save_choices(need_file: bool) -> bool:
+        """Write what is chosen in this window into config.json. False = not saved (message shown)."""
         path = video.get().strip().strip('"')
-        if not path or not Path(path).is_file():
+        if need_file and (not path or not Path(path).is_file()):
             messagebox.showwarning("DomePlayer", "ยังไม่ได้เลือกไฟล์วิดีโอ หรือหาไฟล์ไม่เจอ\nกด \"เลือกไฟล์…\" ก่อน")
-            return
-        r = _read_raw()
-        r.setdefault("video", {})["path"] = path.replace("\\", "/")
-        r["video"]["audio"] = bool(audio.get())
+            return False
+        try:
+            r = _read_raw()
+        except (ValueError, OSError) as e:
+            messagebox.showerror("DomePlayer", f"อ่าน config.json ไม่ได้:\n{e}")
+            return False
+        if path:
+            r.setdefault("video", {})["path"] = path.replace("\\", "/")
+        r.setdefault("video", {})["audio"] = bool(audio.get())
         r.setdefault("display", {})["monitor"] = numbers[mon_box.current()]
         r["display"]["fullscreen"] = bool(fullscreen.get())
         r.setdefault("stats", {})["show_on_start"] = bool(stats.get())
@@ -171,16 +197,46 @@ def main() -> int:
             mon_list = [int(x) for x in stack_list.get().replace(" ", ",").split(",") if x.strip()]
         except ValueError:
             messagebox.showwarning("DomePlayer", "เลขจอต้องเป็นตัวเลขคั่นด้วยจุลภาค เช่น 3, 6, 2, 4, 5, 1")
-            return
+            return False
         r.setdefault("stack", {})["enabled"] = bool(stack.get())
         if mon_list:
             r["stack"]["monitors"] = mon_list
         try:
-            _write_raw(r)
-            load_config()  # same checks the player does, so errors show here
+            _write_raw(r)      # same checks the player does; config.json is replaced only if they pass
         except (OSError, ConfigError) as e:
             messagebox.showerror("DomePlayer", f"บันทึก config.json ไม่ได้:\n{e}")
+            return False
+        return True
+
+    def play():
+        if not save_choices(need_file=True):
             return
+        if watchdog.is_running():      # Play pressed twice, or the power-on start is still running
+            if not messagebox.askyesno(
+                    "DomePlayer", "DomePlayer เปิดอยู่แล้ว (กำลังเล่น หรือเพิ่งเปิดเครื่องและกำลังรอโปรเจคเตอร์)\n\n"
+                                  "ปิดตัวเดิม แล้วเริ่มเล่นใหม่ไหม?"):
+                return
+            status.set("กำลังปิดตัวเดิม…")
+            root.update()
+            gone = watchdog.request_stop()
+            status.set("")
+            if not gone:
+                messagebox.showerror("DomePlayer", "ปิดตัวเดิมไม่สำเร็จ\nกด Esc ที่หน้าจอเล่น หรือรีสตาร์ทเครื่อง แล้วลองใหม่")
+                return
+        try:
+            c = load_config()
+            want = list(c["stack"]["monitors"]) if c["stack"]["enabled"] else [c["display"]["monitor"]]
+            have = [n for n, _ in _monitors()]
+            missing = [n for n in want if n not in have]
+        except Exception:  # noqa: BLE001 - only a courtesy question, never block Play
+            c, have, missing = None, [], []
+        if c is not None and c["display"]["fullscreen"] and have and missing:
+            if not messagebox.askyesno(
+                    "DomePlayer", f"หาจอ {', '.join(map(str, missing))} ไม่เจอ "
+                                  "(โปรเจคเตอร์ยังไม่เปิด หรือเลขจอเปลี่ยน)\n"
+                                  f"ตอนนี้เจอจอ: {', '.join(map(str, have))}\n\n"
+                                  "เล่นเฉพาะจอที่เจอไปก่อนไหม?\n(ไม่ = กลับไปแก้  กด 'โชว์เลขจอ' เพื่อดูเลขจอ)"):
+                return
         try:
             watchdog.set_autostart(bool(autostart.get()))
         except OSError as e:
@@ -220,28 +276,44 @@ def main() -> int:
         sb.pack(side="right", fill="y")
 
     def check():
-        status.set("กำลังตรวจความพร้อม… ประมาณ 30-60 วินาที (อย่าเพิ่งปิด)")
+        if not save_choices(need_file=False):      # check what is chosen on screen, not the old file
+            return
+        f = APP_DIR / "logs" / "check.txt"
+        try:
+            f.unlink()                             # never show an old result
+        except OSError:
+            pass
+        status.set("กำลังตรวจความพร้อม… ประมาณ 30-90 วินาที (อย่าเพิ่งปิด)")
         for b in tool_buttons:
             b.configure(state="disabled")
+        t0 = time.time()
         try:
             proc = subprocess.Popen(_self_command("--check"), cwd=str(APP_DIR))
         except Exception as e:  # noqa: BLE001
             status.set("")
+            for b in tool_buttons:
+                b.configure(state="normal")
             messagebox.showerror("DomePlayer", str(e))
             return
 
         def wait():
             if proc.poll() is None:
-                root.after(500, wait)
-                return
+                if time.time() - t0 < CHECK_LIMIT_S:
+                    root.after(500, wait)
+                    return
+                proc.kill()        # stuck (usually a camera driver): end it so it does not keep the camera
             for b in tool_buttons:
                 b.configure(state="normal")
             status.set("")
-            f = APP_DIR / "logs" / "check.txt"
-            if f.exists():
+            try:
+                fresh = f.stat().st_mtime >= t0 - 2      # written by THIS run
+            except OSError:
+                fresh = False
+            if fresh:
                 show_text("DomePlayer - ตรวจความพร้อม", f.read_text(encoding="utf-8-sig"))
             else:
-                messagebox.showerror("DomePlayer", "ตรวจไม่สำเร็จ ดู logs\\domeplayer.log")
+                messagebox.showerror("DomePlayer", "ตรวจไม่สำเร็จ (โปรแกรมตรวจค้างหรือปิดตัวเอง)\n"
+                                     "ถ้ากล้องเสียบอยู่ ลองถอดสาย USB กล้องแล้วกดตรวจใหม่\nดู logs\\domeplayer.log")
         root.after(500, wait)
 
     def rollback():

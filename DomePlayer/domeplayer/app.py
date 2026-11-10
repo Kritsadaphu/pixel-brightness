@@ -28,7 +28,7 @@ import time
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from . import warp
+from . import warp, watchdog
 from .config import APP_DIR, ConfigError, load_config, resolve_path, save_outputs, save_setting
 
 log = logging.getLogger("domeplayer")
@@ -179,15 +179,18 @@ def import_mpv():
     lib_dir = APP_DIR / "lib"
     # CUDA numbers the GPUs in PCI slot order, like nvidia-smi (cuda_device in config)
     os.environ.setdefault("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
+    # OpenCV's Media Foundation camera open can take tens of seconds with this left on
+    os.environ.setdefault("OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS", "0")
     if os.name == "nt":
+        if not any((lib_dir / n).exists() for n in ("libmpv-2.dll", "mpv-2.dll")):
+            raise RuntimeError(
+                f"libmpv-2.dll not found in {lib_dir}. The lib folder must stay next to "
+                "DomePlayer.exe - copy the whole DomePlayer folder again "
+                "(source install: run 1-SETUP.bat again)."
+            )
         os.environ["PATH"] = str(lib_dir) + os.pathsep + os.environ.get("PATH", "")
         if hasattr(os, "add_dll_directory"):
             os.add_dll_directory(str(lib_dir))
-        if not any((lib_dir / n).exists() for n in ("libmpv-2.dll", "mpv-2.dll")):
-            raise RuntimeError(
-                f"libmpv-2.dll not found in {lib_dir}. Run 1-SETUP.bat again "
-                "(or put libmpv-2.dll into the lib folder by hand, see README)."
-            )
     import mpv  # noqa: WPS433 (import after PATH change on purpose)
     return mpv
 
@@ -229,6 +232,9 @@ class DomePlayer:
         self._mpv_errors: list[str] = []
         self._file_loaded = False
         self._load_time = 0.0
+        self._beat_pos = None      # video position at the last 2 s tick
+        self._stalled = 0          # 2 s ticks in a row without the video moving
+        self._t_run = time.perf_counter()
         self.player = None
 
         # stacking / alignment state
@@ -428,13 +434,20 @@ class DomePlayer:
             data[str(n)] = o
         try:
             save_outputs(self.cfg["_config_path"], data)
-        except OSError as e:
+        except (OSError, ValueError) as e:
             self.say(f"could not save config.json: {e}", 6)
             return
         self.dirty.clear()
         self.say(f"saved alignment of monitor {', '.join(map(str, nums))} to config.json")
 
     def _on_key(self, _win, key, _scancode, action, mods):
+        try:
+            self._handle_key(key, action, mods)
+        except Exception as e:  # noqa: BLE001 - a key press must never end the show
+            log.exception("key %s failed", key)
+            self.say(f"that key did not work: {e}", 6)
+
+    def _handle_key(self, key, action, mods):
         g = self.glfw
         if action not in (g.PRESS, g.REPEAT):
             return
@@ -505,13 +518,18 @@ class DomePlayer:
             return
         if key == self.keys["stats"]:
             self.show_stats = not self.show_stats
+            try:    # remembered, so a power-on / automatic restart does not bring the page back
+                save_setting(self.cfg["_config_path"], "stats", "show_on_start", self.show_stats)
+            except Exception:  # noqa: BLE001
+                pass
         elif key == self.keys["quit"]:
             self.running = False
         elif key == self.keys["pause"] and self.player is not None:
             self.player.pause = not self.player.pause
         elif key == self.keys["restart"] and self.player is not None:
-            self.player.seek(0, "absolute", "exact")
-            self.stats.reset()
+            if not self.prop("idle-active"):      # seek raises when nothing is loaded
+                self.player.seek(0, "absolute", "exact")
+                self.stats.reset()
 
     def _circle_key(self, key, shift, ctrl) -> bool:
         """Dome circle editing while the camera preview is open. True if the key was used."""
@@ -553,12 +571,19 @@ class DomePlayer:
         try:
             save_setting(self.cfg["_config_path"], "calibration", "dome_circle", self.circle)
             save_setting(self.cfg["_config_path"], "calibration", "dome_front_deg", round(self.front_deg, 2))
-        except OSError as e:
+        except (OSError, ValueError) as e:
             self.say(f"could not save config.json: {e}", 6)
             return
         self.circle_dirty = False
         from .calib import solve
-        data = solve.load_capture(self.cal_folder)
+        busy(120)
+        try:
+            data = solve.load_capture(self.cal_folder)
+        except Exception as e:  # noqa: BLE001 - damaged camera pictures must not end the player
+            log.exception("could not read the saved camera pictures")
+            self.say(f"dome circle saved, but the camera pictures could not be read ({e}).\n"
+                     "K K = calibrate again", 8)
+            return
         if data is None:
             self.say("dome circle saved. Now K K = calibrate", 5)
             return
@@ -659,7 +684,12 @@ class DomePlayer:
 
     def open_camera(self) -> bool:
         if self.camera is not None:
-            return True
+            stale = getattr(self.camera, "stale", None)
+            if stale is None or not stale():
+                return True
+            log.warning("camera %d stopped sending pictures - opening it again", self.cam_index)
+            self.close_camera()
+        busy(180)       # opening a USB camera can take long: the watchdog must not take it for a freeze
         cc = dict(self.cfg["calibration"], camera=self.cam_index)
         try:
             from .calib.camera import open_camera
@@ -675,6 +705,7 @@ class DomePlayer:
 
     def close_camera(self) -> None:
         if self.camera is not None:
+            busy(30)
             try:
                 self.camera.close()
             except Exception:
@@ -714,7 +745,7 @@ class DomePlayer:
                                           measure_delay=bool(cc.get("measure_delay", True)))
         try:
             save_setting(self.cfg["_config_path"], "calibration", "camera", self.cam_index)
-        except OSError:
+        except (OSError, ValueError):
             pass
         log.info("calibration started: %d patterns, outputs %s sizes %s",
                  len(self.session.steps), self.nums, sizes)
@@ -722,7 +753,7 @@ class DomePlayer:
     def _after_capture(self) -> None:
         ses, self.session = self.session, None
         if ses.error:
-            self.say(f"calibration stopped: {ses.error}\nnothing was changed", 10)
+            self.say(f"calibration stopped: {ses.error}\nnothing was changed  (also in logs/domeplayer.log)", 60)
             return
         data = ses.result()
         self._start_solve(data, save_raw=True)
@@ -734,7 +765,8 @@ class DomePlayer:
         if self.cal_mode == "dome":
             dome = {"circle": list(self.circle), "front_deg": self.front_deg,
                     "lens_mm": cc["lens_mm"], "sensor_width_mm": cc["sensor_width_mm"]}
-        job = {"progress": 0.0, "result": None, "error": None}
+        job = {"progress": 0.0, "result": None, "error": None,
+               "old_circle": bool(save_raw and dome is not None and self.circle[2] > 0)}
 
         def work():
             try:
@@ -768,16 +800,32 @@ class DomePlayer:
             return
         self._solve = None
         if job["error"]:
-            self.say(f"calibration failed: {job['error']}", 10)
+            self.say(f"calibration failed: {job['error']}\nnothing was changed  (also in logs/domeplayer.log)", 60)
             return
         self._cal_data = job["result"]
         self.cal_use = True
         self.test = 1
-        st = job["result"]["info"]["stats"]
+        info = job["result"]["info"]
+        st = info["stats"]
+        self.messages = [m for m in self.messages if not m.startswith("The saved calibration")]
+        warn = []
+        c = info.get("circle")
+        cw, ch = info.get("camera_size") or (0, 0)
+        if c and ch and (c[1] - c[2] < 0.01 or c[1] + c[2] > 0.99
+                         or c[0] * cw - c[2] * ch < 0.01 * ch or c[0] * cw + c[2] * ch > cw - 0.01 * ch):
+            warn.append("the dome circle reaches the edge of the camera picture")
+        low = [f"{n} ({o['coverage'] * 100:.0f}%)" for n, o in info["outputs"].items()
+               if o.get("coverage", 1) < 0.9]
+        if low:
+            warn.append("the camera saw only part of monitor " + ", ".join(low))
+        tail = ("\nCHECK: " + "; ".join(warn) + ".\nWhat the camera cannot see stays BLACK. Press C: the whole "
+                "dome edge must be inside the camera picture") if warn else ""
+        if job.get("old_circle"):
+            tail += "\nThe dome circle is the saved one - if the camera was moved, press C and check it (A = automatic)"
         self.say("calibration done and saved.\n"
                  f"brightness evenness: {st['uniformity_before']*100:.0f}% -> {st['uniformity_after']*100:.0f}% "
                  f"variation, keeps {st['brightness_kept']*100:.0f}% of the light\n"
-                 "T = grid / white / video   U = compare with calibration off", 12)
+                 "T = grid / white / video   U = compare with calibration off" + tail, 40 if tail else 12)
 
     def _build_cal_textures(self, rects: dict) -> None:
         """Upload loaded calibration as GL textures (main thread, needs output sizes)."""
@@ -831,6 +879,8 @@ class DomePlayer:
         except Exception as e:  # noqa: BLE001
             log.warning("could not load calibration from %s: %s", self.cal_folder, e)
             self._cal_data = None
+            self.messages.append("The saved calibration could not be read - the picture is NOT fitted to the dome.\n"
+                                 "Close DomePlayer and use the calibration roll-back button, or calibrate again (K K).")
 
     def _grab_outputs(self, fw: int, fh: int) -> None:
         """Simulated camera only: hand it what every output shows right now."""
@@ -844,6 +894,8 @@ class DomePlayer:
         if now >= self._preview_next:
             self._preview_next = now + 0.1
             frame = self.camera.latest() if self.camera else None
+            if frame is not None and getattr(self.camera, "stale", lambda: False)():
+                frame = None          # camera went off: do not show an old picture as if it were live
             if frame is None:
                 self.preview_info.set_text(f"camera {self.cam_index}: waiting for picture...", color=(255, 200, 80))
                 return
@@ -881,8 +933,11 @@ class DomePlayer:
                 dome_help = (f"\nDOME CIRCLE ({state}): arrows = move  + / - = size  (Shift = x10)   "
                              f", . = turn FRONT ({self.front_deg:.0f} deg)   A = automatic   Ctrl+S = save"
                              "\nT = white on all projectors so the dome is visible")
+            cam_fps = float(getattr(self.camera, "fps", 0.0) or 0.0)
             self.preview_info.set_text(
-                f"CAMERA {self.cam_index}  {fw_}x{fh_}   over-exposed: {over:.1f}%{hint}\n"
+                f"CAMERA {self.cam_index}  {fw_}x{fh_}  {cam_fps:.0f} pictures/s"
+                f"{'  <- SLOW (want about 30)' if 0 < cam_fps < 15 else ''}"
+                f"   over-exposed: {over:.1f}%{hint}\n"
                 "[ ] = other camera    K K = start calibration    C = close" + dome_help,
                 color=(255, 230, 120) if over <= 1 and not black else (255, 120, 90))
         iw, ih = self.preview_img.size
@@ -1039,6 +1094,34 @@ class DomePlayer:
         except Exception:
             return None
 
+    def _video_stalled(self) -> bool:
+        """Called every 2 s. True when the video did play and has now not moved for 30 s although
+        the main loop runs (mpv idle, decoder stuck ...). Paused / loop off never count."""
+        pos = self._last_time_pos
+        if pos != self._beat_pos:
+            self._beat_pos, self._stalled = pos, 0
+            return False
+        if pos is None or not self.cfg["video"]["loop"] or self.prop("pause"):
+            return False
+        self._stalled += 1
+        return self._stalled >= 15
+
+    def _every_2s(self) -> None:
+        if watchdog.stop_requested():       # the start window was asked to start a new show
+            log.info("a new start of DomePlayer asked this one to stop")
+            self.running = False
+            return
+        if not SUPERVISED:
+            return
+        try:
+            HEARTBEAT.write_text(str(time.time()), encoding="ascii")
+        except OSError:
+            pass
+        if self._video_stalled():
+            log.error("the video has not moved for 30 s - restarting the player")
+            self.exit_code = 1
+            self.running = False
+
     def load_video(self) -> bool:
         path = self.cfg["video"]["path_resolved"]
         if not Path(path).is_file():
@@ -1067,72 +1150,96 @@ class DomePlayer:
         self._monitors_changed = None
         glfw.set_monitor_callback(lambda _m, _ev: setattr(self, "_monitors_changed", time.perf_counter()))
         next_beat = 0.0
+        next_idle_check = 0.0
+        next_restore = 0.0
+        errors = 0
+        self._t_run = time.perf_counter()
 
         while self.running and not glfw.window_should_close(self.window):
-            glfw.poll_events()
-            now = time.perf_counter()
-            if SUPERVISED and now >= next_beat:
-                next_beat = now + 2.0
-                try:
-                    HEARTBEAT.write_text(str(time.time()), encoding="ascii")
-                except OSError:
-                    pass
-            if self._monitors_changed is not None and now - self._monitors_changed > 3.0:
-                self._monitors_changed = None
-                log.warning("monitors were connected/disconnected (projector turned off or on?)")
-                if SUPERVISED and self.cfg["display"]["fullscreen"]:
-                    log.warning("restarting the player so the outputs are set up again")
-                    self.exit_code = 3
-                    self.running = False
-                else:
-                    self.say("a monitor was connected or disconnected - restart DomePlayer", 8)
+            try:
+                glfw.poll_events()
+                now = time.perf_counter()
+                if now >= next_beat:
+                    next_beat = now + 2.0
+                    self._every_2s()
+                if self._monitors_changed is not None and now - self._monitors_changed > 3.0:
+                    self._monitors_changed = None
+                    log.warning("monitors were connected/disconnected (projector turned off or on?)")
+                    if SUPERVISED and self.cfg["display"]["fullscreen"]:
+                        log.warning("restarting the player so the outputs are set up again")
+                        self.exit_code = 3
+                        self.running = False
+                    else:
+                        self.say("a monitor was connected or disconnected - restart DomePlayer", 8)
 
-            if not self._file_loaded and now >= next_file_check:
-                next_file_check = now + 5.0      # keep retrying (e.g. a USB drive mounting late)
-                if not self.load_video():
-                    msg = f"Video file not found:\n{self.cfg['video']['path_resolved']}\n(checking again every 5 s)"
-                    if msg not in self.messages:
-                        self.messages.append(msg)
-                        log.error(msg.replace("\n", " "))
-                else:
-                    self.messages = [m for m in self.messages if not m.startswith("Video file not found")]
+                if self._file_loaded and now >= next_idle_check:
+                    next_idle_check = now + 2.0
+                    if now - self._load_time > 10.0 and self.prop("idle-active"):
+                        log.error("mpv stopped playing (%s) - loading the video again",
+                                  self._mpv_errors[-1] if self._mpv_errors else "no error reported")
+                        self._file_loaded = False
+                if not self._file_loaded and now >= next_file_check:
+                    next_file_check = now + 5.0      # keep retrying (e.g. a USB drive mounting late)
+                    if not self.load_video():
+                        msg = f"Video file not found:\n{self.cfg['video']['path_resolved']}\n(checking again every 5 s)"
+                        if msg not in self.messages:
+                            self.messages.append(msg)
+                            log.error(msg.replace("\n", " "))
+                    else:
+                        self.messages = [m for m in self.messages if not m.startswith("Video file not found")]
 
-            # 1) let mpv draw the newest decoded frame into our video texture
-            if self._frame_ready.is_set():
-                self._frame_ready.clear()
-                if self.render_ctx.update():
-                    self.ensure_video_target()
-                    fbo = self.video_fbo or self.dummy_fbo
-                    w, h = fbo.size
-                    self.render_ctx.render(flip_y=True, opengl_fbo={"w": w, "h": h, "fbo": fbo.glo})
-                    if self.video_fbo is not None:
-                        if self.cfg["render"]["mipmaps"]:
-                            self.video_tex.build_mipmaps()
-                        self.stats.on_video_frame()
+                # 1) let mpv draw the newest decoded frame into our video texture
+                if self._frame_ready.is_set():
+                    self._frame_ready.clear()
+                    if self.render_ctx.update():
+                        self.ensure_video_target()
+                        fbo = self.video_fbo or self.dummy_fbo
+                        w, h = fbo.size
+                        self.render_ctx.render(flip_y=True, opengl_fbo={"w": w, "h": h, "fbo": fbo.glo})
+                        if self.video_fbo is not None:
+                            if self.cfg["render"]["mipmaps"]:
+                                self.video_tex.build_mipmaps()
+                            self.stats.on_video_frame()
 
-            # 2) draw every output (mpv may have changed GL state, so set what we need)
-            fw, fh = glfw.get_framebuffer_size(self.window)
-            if fw == 0 or fh == 0:
-                time.sleep(0.01)
-                continue
-            if self._cal_data is not None and self._rects:
-                self._build_cal_textures(self._rects)
-            self.draw_frame(fw, fh, bg, now)
-            if self.camera is not None and self.camera.index == -1 and (self.session or self.preview):
-                self._grab_outputs(fw, fh)
+                # 2) draw every output (mpv may have changed GL state, so set what we need)
+                fw, fh = glfw.get_framebuffer_size(self.window)
+                if fw == 0 or fh == 0:
+                    if self.cfg["display"]["fullscreen"] and now >= next_restore:
+                        next_restore = now + 2.0
+                        glfw.restore_window(self.window)   # minimised (Win+D / Win+M): bring it back
+                    time.sleep(0.01)
+                    continue
+                if self._cal_data is not None and self._rects:
+                    self._build_cal_textures(self._rects)
+                self.draw_frame(fw, fh, bg, now)
+                if self.camera is not None and self.camera.index == -1 and (self.session or self.preview):
+                    self._grab_outputs(fw, fh)
 
-            glfw.swap_buffers(self.window)
-            self.render_ctx.report_swap()
-            self.stats.on_swap(self.vsync)
-            self.frame_no += 1
+                glfw.swap_buffers(self.window)
+                self.render_ctx.report_swap()
+                self.stats.on_swap(self.vsync)
+                self.frame_no += 1
 
-            # 3) camera calibration: take pictures, then solve in the background
-            if self.session is not None:
-                self.session.presented(time.perf_counter())
-                self.session.poll()
-                if self.session.done:
-                    self._after_capture()
-            self._check_solve()
+                # 3) camera calibration: take pictures, then solve in the background
+                if self.session is not None:
+                    self.session.presented(time.perf_counter())
+                    self.session.poll()
+                    if self.session.done:
+                        self._after_capture()
+                self._check_solve()
+                errors = 0
+                # vsync is not holding the loop back (forced off in the driver, display asleep):
+                # pace it ourselves instead of spinning one CPU core and the GPU at 100 %
+                if self.stats.render_fps > self.refresh_hz * 1.5:
+                    spare = 1.0 / self.refresh_hz - (time.perf_counter() - now)
+                    if spare > 0:
+                        time.sleep(spare)
+            except Exception:  # noqa: BLE001 - one bad frame must not end the show
+                errors += 1
+                log.exception("frame failed (%d in a row)", errors)
+                if errors >= 30:
+                    raise              # really broken: let the watchdog restart us
+                time.sleep(0.05)
 
         self.close_camera()
         self.shutdown()
@@ -1165,6 +1272,9 @@ class DomePlayer:
 
         for n, x, y, w, h in visible:
             self.ctx.viewport = (x, fh - y - h, w, h)
+            if (self.cal_use and self.cal is not None and self.cal["ref"] is None
+                    and n not in self.cal["tex"] and self.test == 0 and self.solo is None):
+                continue      # dome: an output without calibration stays black, not a raw fisheye
             self.draw_output(n, w, h, bg)
             if self.test == 1:
                 self.labels[n].draw(w, h, center=True)
@@ -1196,6 +1306,9 @@ class DomePlayer:
                 f"calculating calibration ... {int(self._solve['progress'] * 100)}%", color=(140, 255, 160))
             self.progress_overlay.draw(w, h, center=True)
         msgs = list(self.messages)
+        if SUPERVISED and not self.show_stats and now - self._t_run > 120:
+            # unattended show: start-up warnings stay in the log (and on the F1 page) only
+            msgs = [m for m in msgs if m.startswith(("Video file not found", "The saved calibration"))]
         if (self._file_loaded and self._mpv_errors and now - self._load_time > 3.0
                 and self.prop("idle-active")):
             msgs.append("Video could not be played:\n" + self._mpv_errors[-1])
@@ -1350,6 +1463,19 @@ HEARTBEAT = APP_DIR / "logs" / "heartbeat.txt"
 EXIT_MONITORS_CHANGED = 3
 
 
+def busy(seconds: float) -> None:
+    """Tell the watchdog the main loop will be busy for up to 'seconds' (camera open ...): the
+    heartbeat file gets a time in the future, the next normal heartbeat sets it back."""
+    if not SUPERVISED:
+        return
+    try:
+        HEARTBEAT.write_text(str(time.time()), encoding="ascii")
+        t = time.time() + seconds
+        os.utime(HEARTBEAT, (t, t))
+    except OSError:
+        pass
+
+
 def keep_awake() -> None:
     """Stop Windows from sleeping / turning the screens off / screensaver while we run."""
     if os.name != "nt":
@@ -1370,7 +1496,7 @@ def show_fatal(message: str) -> None:
     if os.name == "nt":
         try:
             import ctypes
-            ctypes.windll.user32.MessageBoxW(None, message, "DomePlayer error", 0x10)
+            ctypes.windll.user32.MessageBoxW(None, message, "DomePlayer error", 0x10 | 0x40000 | 0x10000)
             return
         except Exception:
             pass
@@ -1400,7 +1526,7 @@ def main(argv: list[str] | None = None) -> int:
             import numpy
             import_mpv()
             from .calib import camera, session, solve  # noqa: F401
-            from . import backup, check, report, watchdog  # noqa: F401
+            from . import backup, check, report  # noqa: F401  (watchdog is imported at the top)
             log.info("self-test OK: opencv %s, numpy %s", cv2.__version__, numpy.__version__)
             return 0
         except Exception:  # noqa: BLE001
@@ -1418,6 +1544,9 @@ def main(argv: list[str] | None = None) -> int:
             show_fatal(f"{e}\n\nDetails are in {log_file}")
             return 1
 
+    if not SUPERVISED and not watchdog.single_instance():    # a show is already running
+        watchdog.tell(watchdog.ALREADY_RUNNING)
+        return 0
     cfg_path = None
     if "--config" in argv:
         cfg_path = Path(argv[argv.index("--config") + 1])

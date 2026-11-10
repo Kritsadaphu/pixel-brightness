@@ -5,3 +5,13 @@ lib/*.dll
 logs/*.log
 logs/*.txt
 dist/
+calibration/
+calibration_backup/
+config.json.bak
+config.json.tmp
+config.check.json
+config.broken-*.json
+logs/*.jpg
+logs/*.json
+logs/*.request
+logs/*.log.*

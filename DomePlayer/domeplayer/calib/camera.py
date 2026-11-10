@@ -21,7 +21,7 @@ log = logging.getLogger("domeplayer.camera")
 
 
 class UvcCamera:
-    def __init__(self, index: int, width: int = 1920, height: int = 1080):
+    def __init__(self, index: int, width: int = 1920, height: int = 1080, fourcc: str = ""):
         import cv2
 
         self.index = index
@@ -35,6 +35,8 @@ class UvcCamera:
             c.release()
         if cap is None:
             raise RuntimeError(f"camera {index} could not be opened")
+        if len(fourcc) == 4:             # config calibration.camera_fourcc, e.g. "MJPG"
+            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*fourcc))
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
         try:
@@ -47,6 +49,7 @@ class UvcCamera:
         self._lock = threading.Lock()
         self._stop = False
         self.fails = 0
+        self._opened = time.perf_counter()
         self._thread = threading.Thread(target=self._run, name="camera", daemon=True)
         self._thread.start()
         log.info("camera %d opened, %dx%d", index, *self.size)
@@ -66,6 +69,19 @@ class UvcCamera:
     @property
     def alive(self) -> bool:
         return self.fails < 40
+
+    def stale(self) -> bool:
+        """No picture for 2 s: the camera was turned off, unplugged or went to sleep."""
+        with self._lock:
+            last = self._frames[-1][0] if self._frames else self._opened
+        return time.perf_counter() - last > 2.0
+
+    @property
+    def fps(self) -> float:
+        """Pictures per second the camera really delivers (from the last few pictures)."""
+        with self._lock:
+            ts = [t for t, _ in self._frames]
+        return (len(ts) - 1) / (ts[-1] - ts[0]) if len(ts) > 1 and ts[-1] > ts[0] else 0.0
 
     def latest(self):
         with self._lock:
@@ -236,4 +252,5 @@ def open_camera(cfg_cal: dict, nums: list[int]):
     if cfg_cal.get("simulate"):
         return SimCamera(nums, layout="dome" if cfg_cal.get("mode") == "dome" else "stack",
                          delay_s=float(cfg_cal.get("simulate_delay_ms", 0)) / 1000.0)
-    return UvcCamera(int(cfg_cal["camera"]), int(cfg_cal["camera_width"]), int(cfg_cal["camera_height"]))
+    return UvcCamera(int(cfg_cal["camera"]), int(cfg_cal["camera_width"]), int(cfg_cal["camera_height"]),
+                     str(cfg_cal.get("camera_fourcc") or ""))

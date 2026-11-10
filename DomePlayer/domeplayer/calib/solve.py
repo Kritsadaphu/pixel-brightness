@@ -103,8 +103,16 @@ def dome_to_video(np, xs, ys, cam_size, dome: dict):
         rr = th / np.maximum(th_edge, 1e-6)
     else:
         rr = rho / max(R, 1e-6)
-    a = ang - np.radians(float(dome.get("front_deg", 0)))
+    a = ang - np.radians(float(dome.get("front_deg", 0))) + np.pi / 2   # FRONT = bottom of the Domemaster
     return 0.5 + 0.5 * rr * np.cos(a), 0.5 + 0.5 * rr * np.sin(a), rr
+
+
+def _fill_holes(np, cv2, lit):
+    """Unlit spots enclosed by lit area count as lit (a lamp or LED the camera sees directly is
+    saturated with the projectors on and off, so it looks 'unlit'). The outer edge is not changed."""
+    ff = np.pad(lit.astype(np.uint8), 1)                       # picture border = outside
+    cv2.floodFill(ff, np.zeros((ff.shape[0] + 2, ff.shape[1] + 2), np.uint8), (0, 0), 2)
+    return ff[1:-1, 1:-1] != 2
 
 
 def find_circle(np, cv2, lit_union) -> tuple[float, float, float]:
@@ -144,6 +152,7 @@ def solve(data: dict, ref: int | None, progress=None, dome: dict | None = None) 
             for P in projs.values():
                 li = np.maximum(lin(P["white"]) - blk, 0)
                 union |= li > 0.12 * np.percentile(li, 99.5)
+            union = _fill_holes(np, cv2, union)
             union = cv2.morphologyEx(union.astype(np.uint8), cv2.MORPH_OPEN, np.ones((9, 9), np.uint8))
             circle = find_circle(np, cv2, union)
         dome = dict(dome, circle_px=circle)
@@ -214,6 +223,10 @@ def solve(data: dict, ref: int | None, progress=None, dome: dict | None = None) 
         light = np.maximum(lin(rs(P["white"])) - blk, 0).astype(np.float32)
         # lit area from the white picture (the stripe decode has tiny holes at stripe edges)
         m = (light > 0.12 * np.percentile(light, 99.5)).astype(np.uint8)
+        # light bounced around the dome is bright but carries no stripes: only count where the
+        # projector's own picture was decoded
+        dec = cv2.resize(np.isfinite(P["px"]).astype(np.float32), small, interpolation=cv2.INTER_AREA)
+        m &= cv2.morphologyEx((dec > 0.2).astype(np.uint8), cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
         m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, k5)
         m = cv2.morphologyEx(m, cv2.MORPH_OPEN, k5)
         lit[n] = m > 0
