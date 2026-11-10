@@ -10,6 +10,11 @@ Stacked projection (stack.enabled): every projector shows the same full image on
 area. All outputs live in ONE borderless window that spans those monitors, so every projector
 gets the same video frame in the same swap; no network sync between processes is needed.
 Each output has its own 4-corner warp + brightness so the stacked images can be lined up.
+
+Dome projection (calibration.mode "dome"): the projectors point at different parts of the dome
+and overlap. Camera calibration gives every output a mesh straight into the video and a
+brightness map that blends the overlaps; the dome circle (marked in the camera picture) is
+the edge of the video, everything outside it stays black.
 """
 from __future__ import annotations
 
@@ -58,6 +63,10 @@ uniform int   u_axis;
 uniform int   u_bit;
 uniform bool  u_inv;
 uniform vec2  u_size;            // output size in pixels
+uniform bool  u_mask_on;         // black outside a circle of the video
+uniform vec2  u_mask_c;
+uniform float u_mask_r;
+uniform float u_mask_feather;
 in vec2 v_ndc;
 out vec4 f_color;
 
@@ -126,6 +135,10 @@ void main() {
         col = texture(u_video, uv).rgb;
     } else {
         col = u_bg;
+    }
+    if (u_mask_on && u_mode != 1) {
+        float d = length(p - u_mask_c);
+        col *= 1.0 - smoothstep(u_mask_r - max(u_mask_feather, 1e-4), u_mask_r, d);
     }
     f_color = vec4(clamp(col * u_gain * gm, 0.0, 1.0), 1.0);
 }
@@ -235,6 +248,10 @@ class DomePlayer:
         self.cal = None              # loaded calibration (ref + per-output textures)
         self._cal_data = None        # loaded/solved data waiting for GL textures
         self.cam_index = int(cc["camera"])
+        self.cal_mode = cc["mode"]
+        self.circle = [float(x) for x in cc["dome_circle"]]   # [cx, cy, r] fractions, r=0: auto
+        self.front_deg = float(cc["dome_front_deg"])
+        self.circle_dirty = False
         self.camera = None
         self.preview = False
         self.session = None
@@ -415,7 +432,7 @@ class DomePlayer:
         if action not in (g.PRESS, g.REPEAT):
             return
         repeatable = key in (g.KEY_LEFT, g.KEY_RIGHT, g.KEY_UP, g.KEY_DOWN, g.KEY_EQUAL, g.KEY_MINUS,
-                             g.KEY_KP_ADD, g.KEY_KP_SUBTRACT)
+                             g.KEY_KP_ADD, g.KEY_KP_SUBTRACT, g.KEY_COMMA, g.KEY_PERIOD)
         if action == g.REPEAT and not repeatable:
             return
         ctrl = bool(mods & g.MOD_CONTROL)
@@ -435,6 +452,8 @@ class DomePlayer:
             self.cam_index = max(0, self.cam_index + (1 if key == g.KEY_RIGHT_BRACKET else -1))
             self.close_camera()
             self.open_camera()
+            return
+        if self.preview and self.cal_mode == "dome" and self._circle_key(key, shift, ctrl):
             return
         if key == g.KEY_K:
             self.start_calibration()
@@ -487,6 +506,58 @@ class DomePlayer:
             self.player.seek(0, "absolute", "exact")
             self.stats.reset()
 
+    def _circle_key(self, key, shift, ctrl) -> bool:
+        """Dome circle editing while the camera preview is open. True if the key was used."""
+        g = self.glfw
+        cam = self.camera.size if self.camera is not None else (1920, 1080)
+        if ctrl and key == g.KEY_S:
+            self.save_circle()
+            return True
+        if key == g.KEY_A:
+            self.circle = [0.0, 0.0, 0.0]
+            self.circle_dirty = True
+            self.say("dome circle: automatic (found from the projected light)\nCtrl+S = save and recalculate", 5)
+            return True
+        moves = {g.KEY_LEFT: (-1, 0), g.KEY_RIGHT: (1, 0), g.KEY_UP: (0, -1), g.KEY_DOWN: (0, 1)}
+        step = 10 if shift else 1
+        if key not in moves and key not in (g.KEY_EQUAL, g.KEY_KP_ADD, g.KEY_MINUS, g.KEY_KP_SUBTRACT,
+                                            g.KEY_COMMA, g.KEY_PERIOD):
+            return False
+        if self.circle[2] <= 0:      # start from the automatic circle (or the picture centre)
+            auto = getattr(self, "auto_circle", None)
+            self.circle = list(auto) if auto else [0.5, 0.5, 0.45]
+        cx, cy, r = self.circle
+        if key in moves:
+            dx, dy = moves[key]
+            cx += dx * step / cam[0]
+            cy += dy * step / cam[1]
+        elif key in (g.KEY_EQUAL, g.KEY_KP_ADD):
+            r += step / cam[1]
+        elif key in (g.KEY_MINUS, g.KEY_KP_SUBTRACT):
+            r = max(0.02, r - step / cam[1])
+        else:
+            self.front_deg = (self.front_deg + (step if key == g.KEY_PERIOD else -step)) % 360
+        self.circle = [round(cx, 5), round(cy, 5), round(r, 5)]
+        self.circle_dirty = True
+        self._preview_next = 0.0
+        return True
+
+    def save_circle(self) -> None:
+        try:
+            save_setting(self.cfg["_config_path"], "calibration", "dome_circle", self.circle)
+            save_setting(self.cfg["_config_path"], "calibration", "dome_front_deg", round(self.front_deg, 2))
+        except OSError as e:
+            self.say(f"could not save config.json: {e}", 6)
+            return
+        self.circle_dirty = False
+        from .calib import solve
+        data = solve.load_capture(self.cal_folder)
+        if data is None:
+            self.say("dome circle saved. Now K K = calibrate", 5)
+            return
+        self.say("dome circle saved - recalculating from the last camera pictures ...", 5)
+        self._start_solve(data)
+
     def toggle_edit(self) -> None:
         if self.edit:
             self.edit = False
@@ -496,6 +567,10 @@ class DomePlayer:
         else:
             if self.edit_target() is None:
                 self.say("first press a monitor number (1-9) to show one output, then E", 5)
+                return
+            if self._calibrated(self.edit_target()) and self.cal["ref"] is None:
+                self.say("this monitor follows the camera calibration (dome). Press U to turn "
+                         "calibration off, or C to change the dome circle.", 6)
                 return
             if self._calibrated(self.edit_target()) and self.edit_target() != self.cal["ref"]:
                 self.say(f"monitor {self.edit_target()} follows the camera calibration. "
@@ -642,13 +717,26 @@ class DomePlayer:
             self.say(f"calibration stopped: {ses.error}\nnothing was changed", 10)
             return
         data = ses.result()
+        self._start_solve(data, save_raw=True)
+
+    def _start_solve(self, data: dict, save_raw: bool = False) -> None:
         ref = self.nums[0]
+        cc = self.cfg["calibration"]
+        dome = None
+        if self.cal_mode == "dome":
+            dome = {"circle": list(self.circle), "front_deg": self.front_deg,
+                    "lens_mm": cc["lens_mm"], "sensor_width_mm": cc["sensor_width_mm"]}
         job = {"progress": 0.0, "result": None, "error": None}
 
         def work():
             try:
                 from .calib import solve
-                res = solve.solve(data, ref, progress=lambda p: job.__setitem__("progress", p))
+                if save_raw:
+                    try:
+                        solve.save_capture(data, self.cal_folder)
+                    except Exception:  # noqa: BLE001 - only needed to change the circle later
+                        log.exception("could not keep the camera pictures")
+                res = solve.solve(data, ref, progress=lambda p: job.__setitem__("progress", p), dome=dome)
                 solve.save(res, self.cal_folder, {"monitors": self.nums,
                                                   "camera": self.cam_index})
                 job["result"] = solve.load(self.cal_folder)
@@ -711,12 +799,16 @@ class DomePlayer:
                     x.filter = (mgl.LINEAR, mgl.LINEAR)
                     x.repeat_x = x.repeat_y = False
             tex[n] = t
-        if data["ref"] not in tex:
+        if data["ref"] is not None and data["ref"] not in tex:
             log.warning("calibration reference monitor %s is not available, calibration not used", data["ref"])
             self.cal = None
             return
-        self.cal = {"ref": data["ref"], "tex": tex, "info": data.get("info", {})}
-        log.info("calibration loaded for monitors %s (reference %s)", sorted(tex), data["ref"])
+        info = data.get("info", {})
+        self.cal = {"ref": data["ref"], "tex": tex, "info": info, "mode": data.get("mode", "stack")}
+        if self.cal["mode"] == "dome" and self.circle[2] <= 0 and info.get("circle"):
+            self.auto_circle = list(info["circle"])
+        log.info("calibration (%s) loaded for monitors %s (reference %s)", self.cal["mode"],
+                 sorted(tex), data["ref"])
 
     def load_saved_calibration(self) -> None:
         try:
@@ -745,17 +837,39 @@ class DomePlayer:
             from PIL import Image
             gray = frame.mean(axis=2) if frame.ndim == 3 else frame
             over = float(np.mean(gray >= 250)) * 100
-            img = Image.fromarray(np.ascontiguousarray(frame[..., ::-1]) if frame.ndim == 3 else frame)
+            img = Image.fromarray(np.ascontiguousarray(frame[..., ::-1]) if frame.ndim == 3 else frame).convert("RGB")
             scale = min(w * 0.6 / img.width, h * 0.6 / img.height)
-            self.preview_img.set_image(img.resize((max(1, int(img.width * scale)), max(1, int(img.height * scale)))))
             fh_, fw_ = frame.shape[:2]
+            small = img.resize((max(1, int(img.width * scale)), max(1, int(img.height * scale))))
+            circ = self.circle if self.circle[2] > 0 else getattr(self, "auto_circle", None)
+            if self.cal_mode == "dome" and circ:
+                from PIL import ImageDraw
+                dr = ImageDraw.Draw(small)
+                cx, cy, r = circ[0] * small.width, circ[1] * small.height, circ[2] * small.height
+                col = (255, 220, 0) if self.circle[2] > 0 else (120, 200, 255)
+                dr.ellipse((cx - r, cy - r, cx + r, cy + r), outline=(0, 0, 0), width=4)
+                dr.ellipse((cx - r, cy - r, cx + r, cy + r), outline=col, width=2)
+                dr.line((cx - 8, cy, cx + 8, cy), fill=col, width=1)
+                dr.line((cx, cy - 8, cx, cy + 8), fill=col, width=1)
+                a = math.radians(self.front_deg)
+                fx, fy = cx + r * math.cos(a), cy + r * math.sin(a)
+                dr.line((cx + 0.8 * r * math.cos(a), cy + 0.8 * r * math.sin(a), fx, fy), fill=(255, 80, 80), width=4)
+                dr.text((fx + 6, fy - 6), "FRONT", fill=(255, 80, 80))
+            self.preview_img.set_image(small)
             black = float(gray.max()) < 10
             hint = ("  <- picture is all black: probably not the R50 (e.g. an NDI virtual webcam), "
                     "press ] for the next camera" if black else
                     "  <- too bright, lower exposure" if over > 1 else "")
+            dome_help = ""
+            if self.cal_mode == "dome":
+                state = "NOT SAVED (Ctrl+S)" if self.circle_dirty else (
+                    "automatic" if self.circle[2] <= 0 else "saved")
+                dome_help = (f"\nDOME CIRCLE ({state}): arrows = move  + / - = size  (Shift = x10)   "
+                             f", . = turn FRONT ({self.front_deg:.0f} deg)   A = automatic   Ctrl+S = save"
+                             "\nT = white on all projectors so the dome is visible")
             self.preview_info.set_text(
                 f"CAMERA {self.cam_index}  {fw_}x{fh_}   over-exposed: {over:.1f}%{hint}\n"
-                "[ ] = other camera    K K = start calibration    C = close",
+                "[ ] = other camera    K K = start calibration    C = close" + dome_help,
                 color=(255, 230, 120) if over <= 1 and not black else (255, 120, 90))
         iw, ih = self.preview_img.size
         self.preview_img.draw(w, h, x=(w - iw) // 2, y=(h - ih) // 2)
@@ -1063,7 +1177,9 @@ class DomePlayer:
         p = self.cfg["preview"]
         prog = self.prog
         cal = self.cal["tex"].get(num) if self._calibrated(num) else None
-        if cal is not None and "mesh" in cal:
+        if cal is not None and "mesh" in cal and self.cal["ref"] is None:
+            corners = None       # dome: the mesh already holds video positions
+        elif cal is not None and "mesh" in cal:
             # stacked output: show what the reference shows at the same spot on the dome
             ref = self.cal["ref"]
             rr = self._rects.get(ref, (0, 0, w, h))
@@ -1071,9 +1187,12 @@ class DomePlayer:
         else:
             corners = self.corners_for(num, w, h)
         try:
+            if corners is None:
+                raise ValueError("identity")
             hinv = warp.output_to_image_uniform(corners)
         except ValueError:
             hinv = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+        mk = self.cfg["mask"]
         has_video = self.video_tex is not None
         idx = self.nums.index(num) if num in self.nums else 0
         period = max(1, round(self.refresh_hz * 2))
@@ -1099,6 +1218,10 @@ class DomePlayer:
             "u_sweep": (self.frame_no % period) / period,
             "u_has_video": has_video,
             "u_video": 0,
+            "u_mask_on": bool(mk["enabled"]),
+            "u_mask_c": (float(mk["center"][0]), float(mk["center"][1])),
+            "u_mask_r": float(mk["radius"]),
+            "u_mask_feather": float(mk["feather"]),
         }
         for name, value in values.items():
             member = prog.get(name, None)
@@ -1150,7 +1273,8 @@ class DomePlayer:
         if self.cal is None:
             cal = "none (C = camera, K K = calibrate)"
         else:
-            cal = (f"{'ON' if self.cal_use else 'off'}  ref {self.cal['ref']}, "
+            kind = "dome" if self.cal["ref"] is None else f"stack, ref {self.cal['ref']}"
+            cal = (f"{'ON' if self.cal_use else 'off'}  {kind}, "
                    f"{self.cal['info'].get('created', '?')}  (U = on/off)")
         return "\n".join([
             f"DomePlayer{paused}",

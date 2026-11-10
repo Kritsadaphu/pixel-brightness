@@ -1,5 +1,12 @@
 """Turn captured Gray-code data into per-projector warp meshes and brightness maps.
 
+Geometry (dome, the default): the camera looks up at the dome and a circle marks the dome's
+edge in its picture. Every camera pixel inside it is a known spot of the Domemaster image
+(angle around the circle = angle in the video, distance from the centre = view angle from
+the camera, using the lens focal length). Each projector's mesh stores, for its own pixels,
+the video position that belongs where that pixel lands, so the projectors may point at
+different parts of the dome and overlap any amount.
+
 Geometry (stacking): the first monitor is the reference. For every other projector we find,
 through the camera, which reference pixel lands on the same spot of the dome. Its mesh stores
 that reference position, so it shows exactly what the reference shows there.
@@ -75,7 +82,44 @@ def _norm_blur(np, cv2, img, mask, sigma):
     return np.where(den > 1e-4, num / np.maximum(den, 1e-4), 0)
 
 
-def solve(data: dict, ref: int, progress=None) -> dict:
+def dome_to_video(np, xs, ys, cam_size, dome: dict):
+    """Camera pixels -> Domemaster square position (0..1, y down) and radius (1 = dome edge)."""
+    wcam, hcam = cam_size
+    cx, cy, R = dome["circle_px"]
+    dx, dy = xs - cx, ys - cy
+    rho = np.hypot(dx, dy)
+    ang = np.arctan2(dy, dx)
+    f = float(dome.get("lens_mm", 0)) / float(dome.get("sensor_width_mm", 22.3)) * wcam
+    if f > 0:
+        # view angle away from the ray toward the dome centre (lens centre = picture centre)
+        def ray(x, y):
+            x = np.asarray(x, np.float64)
+            y = np.asarray(y, np.float64)
+            v = np.stack([(x - wcam / 2) / f, (y - hcam / 2) / f, np.ones_like(x)], -1)
+            return v / np.linalg.norm(v, axis=-1, keepdims=True)
+        axis = ray(cx, cy)
+        th = np.arccos(np.clip(ray(xs, ys) @ axis, -1, 1))
+        th_edge = np.arccos(np.clip(ray(cx + R * np.cos(ang), cy + R * np.sin(ang)) @ axis, -1, 1))
+        rr = th / np.maximum(th_edge, 1e-6)
+    else:
+        rr = rho / max(R, 1e-6)
+    a = ang - np.radians(float(dome.get("front_deg", 0)))
+    return 0.5 + 0.5 * rr * np.cos(a), 0.5 + 0.5 * rr * np.sin(a), rr
+
+
+def find_circle(np, cv2, lit_union) -> tuple[float, float, float]:
+    """Biggest circle that is fully lit by the projectors (first guess of the dome edge)."""
+    m = np.pad(lit_union.astype(np.uint8), 1)          # picture border counts as unlit
+    dist = cv2.distanceTransform(m, cv2.DIST_L2, 5)[1:-1, 1:-1]
+    if dist.max() <= 0:
+        h, w = lit_union.shape
+        return w / 2, h / 2, min(w, h) * 0.45
+    y, x = np.unravel_index(int(np.argmax(dist)), dist.shape)
+    return float(x), float(y), float(dist[y, x])
+
+
+def solve(data: dict, ref: int | None, progress=None, dome: dict | None = None) -> dict:
+    """dome=None: stack on monitor 'ref'.  dome={circle, front_deg, lens_mm, ...}: dome mode."""
     import cv2
     import numpy as np
 
@@ -86,16 +130,35 @@ def solve(data: dict, ref: int, progress=None) -> dict:
     gw, gh = MESH
     lin = lambda img: (np.clip(img, 0, 255) / 255.0) ** GAMMA  # noqa: E731
 
-    R = projs[ref]
-    wR, hR = R["size"]
-    validR = np.isfinite(R["px"])
-    # positions use the shader's convention: pixel i is at (i + 0.5) / size
-    qx_all = (R["px"] + 0.5) / wR
-    qy_all = (R["py"] + 0.5) / hR
     hcam, wcam = black.shape
     ys, xs = np.mgrid[0:hcam, 0:wcam].astype(np.float32)
-
-    out = {"ref": ref, "outputs": {}, "camera_size": (wcam, hcam)}
+    out = {"ref": ref, "outputs": {}, "camera_size": (wcam, hcam), "mode": "stack"}
+    if dome is not None:
+        ref = None
+        fx, fy, fr = dome.get("circle") or (0, 0, 0)
+        if fr > 0:
+            circle = (fx * wcam, fy * hcam, fr * hcam)
+        else:
+            union = np.zeros((hcam, wcam), bool)
+            blk = lin(black)
+            for P in projs.values():
+                li = np.maximum(lin(P["white"]) - blk, 0)
+                union |= li > 0.12 * np.percentile(li, 99.5)
+            union = cv2.morphologyEx(union.astype(np.uint8), cv2.MORPH_OPEN, np.ones((9, 9), np.uint8))
+            circle = find_circle(np, cv2, union)
+        dome = dict(dome, circle_px=circle)
+        out.update(mode="dome", circle=[circle[0] / wcam, circle[1] / hcam, circle[2] / hcam],
+                   front_deg=float(dome.get("front_deg", 0)))
+        svx, svy, srr = dome_to_video(np, xs.astype(np.float64), ys.astype(np.float64), (wcam, hcam), dome)
+        svx, svy, srr = svx.astype(np.float32), svy.astype(np.float32), srr.astype(np.float32)
+    else:
+        R = projs[ref]
+        wR, hR = R["size"]
+        validR = np.isfinite(R["px"])
+        # positions use the shader's convention: pixel i is at (i + 0.5) / size
+        qx_all = (R["px"] + 0.5) / wR
+        qy_all = (R["py"] + 0.5) / hR
+    out["ref"] = ref
     nodes_cam = {}
     for k, n in enumerate(nums):
         P = projs[n]
@@ -111,7 +174,15 @@ def solve(data: dict, ref: int, progress=None) -> dict:
         (camx, camy), cvalid = _fill(np, [camx, camy], cvalid, 2)
         nodes_cam[n] = (camx, camy, cvalid)
 
-        if n == ref:
+        if dome is not None:
+            # node -> camera position -> video position
+            cxf, cyf = camx.astype(np.float32), camy.astype(np.float32)
+            mx = cv2.remap(svx, cxf, cyf, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+            my = cv2.remap(svy, cxf, cyf, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+            mesh = np.stack([mx, my], -1).astype(np.float32)
+            mesh[~cvalid] = np.nan
+            cover = float(np.mean(cvalid))
+        elif n == ref:
             mesh = None   # the reference keeps its own 4-corner warp
             cover = float(np.mean(cvalid))
         else:
@@ -150,7 +221,12 @@ def solve(data: dict, ref: int, progress=None) -> dict:
         dist = cv2.distanceTransform(m, cv2.DIST_L2, 5)
         t = np.clip(dist / ramp, 0, 1)
         W[n] = (t * t * (3 - 2 * t)).astype(np.float32)
-    region = cv2.erode(lit[ref].astype(np.uint8), k5) > 0
+    if dome is not None:
+        inside = rs(srr) < 1.0
+        anylit = np.logical_or.reduce([lit[n] for n in nums])
+        region = cv2.erode((inside & anylit).astype(np.uint8), k5) > 0
+    else:
+        region = cv2.erode(lit[ref].astype(np.uint8), k5) > 0
     S = sum(L.values())
     sigma = 0.05 * small[0]
     T = _norm_blur(np, cv2, S, region, sigma)
@@ -204,7 +280,8 @@ def solve(data: dict, ref: int, progress=None) -> dict:
 def save(result: dict, folder: Path, extra: dict) -> None:
     import numpy as np
     folder.mkdir(parents=True, exist_ok=True)
-    info = {"ref": result["ref"], "created": time.strftime("%Y-%m-%d %H:%M:%S"),
+    info = {"ref": result["ref"], "mode": result.get("mode", "stack"), "circle": result.get("circle"),
+            "front_deg": result.get("front_deg"), "created": time.strftime("%Y-%m-%d %H:%M:%S"),
             "camera_size": result["camera_size"], "stats": result["stats"], "outputs": {}, **extra}
     for n, o in result["outputs"].items():
         if o["mesh"] is not None:
@@ -226,4 +303,42 @@ def load(folder: Path) -> dict | None:
         n = int(k)
         mesh = np.load(folder / f"{n}_mesh.npy") if o.get("mesh") else None
         outs[n] = {"size": tuple(o["size"]), "mesh": mesh, "gain": np.load(folder / f"{n}_gain.npy")}
-    return {"ref": int(info["ref"]), "outputs": outs, "info": info}
+    ref = info.get("ref")
+    return {"ref": None if ref is None else int(ref), "mode": info.get("mode", "stack"),
+            "outputs": outs, "info": info}
+
+
+# ---- raw capture (kept so the dome circle can be changed without capturing again) ---------
+
+def save_capture(data: dict, folder: Path) -> None:
+    import numpy as np
+    folder.mkdir(parents=True, exist_ok=True)
+    arrs = {"black": data["black"].astype(np.uint8)}
+    meta = {"nums": [], "black_drift": data.get("black_drift")}
+    for n, P in data["projectors"].items():
+        meta["nums"].append({"num": n, "size": list(P["size"])})
+        for k in ("px", "py"):   # 1/16 pixel steps in int16, -1 = not seen
+            arrs[f"{n}_{k}"] = np.where(np.isfinite(P[k]), np.round(P[k] * 16), -1).astype(np.int16)
+        arrs[f"{n}_white"] = np.clip(P["white"], 0, 255).astype(np.uint8)
+    tmp = folder / "capture.tmp.npz"
+    np.savez_compressed(tmp, **arrs)
+    tmp.replace(folder / "capture.npz")
+    (folder / "capture.json").write_text(json.dumps(meta), encoding="utf-8")
+
+
+def load_capture(folder: Path) -> dict | None:
+    import numpy as np
+    if not (folder / "capture.npz").exists() or not (folder / "capture.json").exists():
+        return None
+    meta = json.loads((folder / "capture.json").read_text(encoding="utf-8"))
+    z = np.load(folder / "capture.npz")
+    projs = {}
+    for it in meta["nums"]:
+        n = int(it["num"])
+        px, py = z[f"{n}_px"].astype(np.float32), z[f"{n}_py"].astype(np.float32)
+        bad = (px < 0) | (py < 0)
+        px, py = px / 16, py / 16
+        px[bad] = np.nan
+        py[bad] = np.nan
+        projs[n] = {"px": px, "py": py, "white": z[f"{n}_white"].astype(np.float32), "size": tuple(it["size"])}
+    return {"projectors": projs, "black": z["black"].astype(np.float32), "black_drift": meta.get("black_drift")}

@@ -93,6 +93,24 @@ DEFAULTS: dict = {
         "skip_bits": 2,          # finest stripes not used (4 px), the camera can't resolve them
         "folder": "calibration", # where results are saved (next to config.json)
         "simulate": False,       # test without a camera (pretend projectors)
+        # "dome"  = projectors each cover part of the dome (fanned out, overlapping); the
+        #           camera looks up at the dome and dome_circle marks the dome's edge in its picture
+        # "stack" = all projectors show the whole picture on the same area, lined up on monitor 1
+        "mode": "dome",
+        # dome edge in the camera picture: [centre x, centre y, radius] as fractions of the
+        # picture width, height, height. [0, 0, 0] = find it from the projected light.
+        "dome_circle": [0, 0, 0],
+        "dome_front_deg": 0.0,   # turns the video around the dome (which side is "front")
+        "lens_mm": 10.0,         # camera lens focal length (R50 + 10-18 mm at 10); 0 = no lens correction
+        "sensor_width_mm": 22.3, # R50 sensor width
+    },
+    # Black outside a circle of the video (Domemaster circle = radius 1.0). Smaller radius
+    # hides the outer edge; feather softens the edge. Used when playing and for flat white.
+    "mask": {
+        "enabled": True,
+        "radius": 1.0,
+        "feather": 0.01,
+        "center": [0.0, 0.0],
     },
     "log_level": "info",
 }
@@ -187,6 +205,20 @@ def load_config(path: Path | None = None) -> dict:
         if "brightness" in o:
             b = o["brightness"]
             _check(isinstance(b, (int, float)) and 0 <= b <= 2, f"{where}.brightness must be 0.0-2.0")
+
+    cc = cfg["calibration"]
+    _check(cc["mode"] in ("dome", "stack"), 'calibration.mode must be "dome" or "stack"')
+    dc = cc["dome_circle"]
+    _check(isinstance(dc, list) and len(dc) == 3 and all(isinstance(x, (int, float)) for x in dc)
+           and dc[2] >= 0, "calibration.dome_circle must be [centre x, centre y, radius], e.g. [0.5, 0.5, 0.45]")
+    for k in ("dome_front_deg", "lens_mm", "sensor_width_mm"):
+        _check(isinstance(cc[k], (int, float)), f"calibration.{k} must be a number")
+    _check(cc["lens_mm"] >= 0 and cc["sensor_width_mm"] > 0, "calibration.lens_mm must be 0 or more")
+    mk = cfg["mask"]
+    _check(isinstance(mk["radius"], (int, float)) and 0 < mk["radius"] <= 2, "mask.radius must be 0.0-2.0")
+    _check(isinstance(mk["feather"], (int, float)) and 0 <= mk["feather"] <= 1, "mask.feather must be 0.0-1.0")
+    _check(isinstance(mk["center"], list) and len(mk["center"]) == 2
+           and all(isinstance(x, (int, float)) for x in mk["center"]), "mask.center must be [x, y]")
 
     cfg["video"]["path_resolved"] = str(resolve_path(v["path"]))
     cfg["_config_path"] = str(path)

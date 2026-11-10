@@ -138,7 +138,7 @@ def main() -> int:
         mon_box.configure(state="disabled" if on else "readonly")
         stack_entry.configure(state="normal" if on else "disabled")
 
-    ttk.Checkbutton(srow, text="ฉายภาพเดียวกันทุกจอ (stack)   จอ:", variable=stack,
+    ttk.Checkbutton(srow, text="ใช้หลายจอพร้อมกัน (โปรเจคเตอร์โดม)   จอ:", variable=stack,
                     command=on_stack).pack(side="left")
     stack_entry.pack(side="left", padx=6)
     on_stack()

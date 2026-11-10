@@ -86,7 +86,7 @@ class UvcCamera:
 class SimCamera:
     """Looks at the player's outputs as if 'nums' projectors were stacked on a curved surface."""
 
-    def __init__(self, nums: list[int], size=(960, 540), seed: int = 7):
+    def __init__(self, nums: list[int], size=(960, 540), seed: int = 7, layout: str = "stack"):
         import numpy as np
 
         self.np = np
@@ -96,7 +96,25 @@ class SimCamera:
         rng = np.random.default_rng(seed)
         w, h = size
         self.truth = {}
+        self.layout = layout
+        # dome layout: camera looks straight up, dome edge = this circle (lens without distortion)
+        self.dome_circle = (w * 0.5, h * 0.5, h * 0.45)
         for i, n in enumerate(nums):
+            if layout == "dome":
+                # projector on the rim at angle phi, shining across the dome (keystoned footprint)
+                C0, C1, R = self.dome_circle
+                phi = math.radians(i * 360.0 / len(nums) + rng.uniform(-6, 6))
+                er = (-math.cos(phi), -math.sin(phi))        # toward the far side
+                et = (-er[1], er[0])
+                c = (C0 + 0.45 * R * er[0], C1 + 0.45 * R * er[1])
+                L, far, near = 0.75 * R, 0.8 * R, 0.6 * R
+                pt = lambda a, b: [c[0] + a * er[0] + b * et[0], c[1] + a * er[1] + b * et[1]]  # noqa: E731
+                quad = [pt(L, -far), pt(L, far), pt(-L, near), pt(-L, -near)]
+                quad = [[x + rng.uniform(-0.01, 0.01) * w, y + rng.uniform(-0.01, 0.01) * h] for x, y in quad]
+                self.truth[n] = {"quad": quad, "bulge": rng.uniform(-0.08, 0.08, size=2),
+                                 "bright": rng.uniform(0.65, 1.0), "vignette": rng.uniform(0.25, 0.45),
+                                 "hot": rng.uniform(-0.15, 0.15, size=2)}
+                continue
             # projector footprint in the camera: a jittered quad + a bulge (curved screen)
             cx, cy = w * 0.5 + rng.uniform(-0.03, 0.03) * w, h * 0.5 + rng.uniform(-0.03, 0.03) * h
             hw, hh = w * 0.36 * rng.uniform(0.95, 1.05), h * 0.40 * rng.uniform(0.95, 1.05)
@@ -192,5 +210,5 @@ class SimCamera:
 
 def open_camera(cfg_cal: dict, nums: list[int]):
     if cfg_cal.get("simulate"):
-        return SimCamera(nums)
+        return SimCamera(nums, layout="dome" if cfg_cal.get("mode") == "dome" else "stack")
     return UvcCamera(int(cfg_cal["camera"]), int(cfg_cal["camera_width"]), int(cfg_cal["camera_height"]))
