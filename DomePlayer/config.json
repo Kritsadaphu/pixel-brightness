@@ -45,7 +45,7 @@
     "restart": "HOME"
   },
   "stack": {
-    "enabled": false,
+    "enabled": true,
     "monitors": [
       3,
       6,
@@ -56,5 +56,14 @@
     ]
   },
   "outputs": {},
+  "calibration": {
+    "use": true,
+    "camera": 0,
+    "settle_ms": 450,
+    "average": 2,
+    "skip_bits": 2,
+    "folder": "calibration",
+    "simulate": false
+  },
   "log_level": "info"
 }

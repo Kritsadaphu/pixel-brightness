@@ -82,6 +82,18 @@ DEFAULTS: dict = {
     # "3": {"corners": [[x, y] top-left, top-right, bottom-right, bottom-left], "brightness": 1.0}
     # Corners are fractions of that output's width/height (0..1, y downwards).
     "outputs": {},
+    # Camera calibration (C = camera preview, K K = calibrate, U = calibration on/off).
+    "calibration": {
+        "use": True,             # apply the saved calibration when playing
+        "camera": 0,             # webcam number; change with [ and ] in the camera preview
+        "camera_width": 1920,
+        "camera_height": 1080,
+        "settle_ms": 450,        # wait after each pattern before taking the picture
+        "average": 2,            # pictures averaged per pattern
+        "skip_bits": 2,          # finest stripes not used (4 px), the camera can't resolve them
+        "folder": "calibration", # where results are saved (next to config.json)
+        "simulate": False,       # test without a camera (pretend projectors)
+    },
     "log_level": "info",
 }
 
@@ -179,6 +191,16 @@ def load_config(path: Path | None = None) -> dict:
     cfg["video"]["path_resolved"] = str(resolve_path(v["path"]))
     cfg["_config_path"] = str(path)
     return cfg
+
+
+def save_setting(config_path: str | Path, section: str, key: str, value) -> None:
+    """Change one value in config.json, keeping everything else as it is."""
+    path = Path(config_path)
+    raw = json.loads(path.read_text(encoding="utf-8-sig")) if path.exists() else {}
+    raw.setdefault(section, {})[key] = value
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    tmp.replace(path)
 
 
 def save_outputs(config_path: str | Path, outputs: dict) -> None:

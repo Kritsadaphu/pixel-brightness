@@ -24,7 +24,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from . import warp
-from .config import APP_DIR, ConfigError, load_config, save_outputs
+from .config import APP_DIR, ConfigError, load_config, resolve_path, save_outputs, save_setting
 
 log = logging.getLogger("domeplayer")
 
@@ -44,9 +44,20 @@ uniform vec2  u_flip;
 uniform float u_rot;     // radians
 uniform vec3  u_bg;
 uniform float u_gain;    // signal multiplier (brightness)
-uniform int   u_mode;    // 0 = video, 1 = test grid
+uniform int   u_mode;    // 0 = video, 1 = test grid, 2 = flat white (uniformity check)
 uniform vec3  u_tint;    // test grid colour of this output
 uniform float u_sweep;   // 0..1, advances every display refresh (sync check)
+// camera calibration
+uniform bool      u_use_mesh;    // output pixel -> reference output position (stacking)
+uniform sampler2D u_mesh;
+uniform vec2      u_mesh_size;
+uniform bool      u_use_gainmap; // per-pixel brightness (signal multiplier)
+uniform sampler2D u_gainmap;
+uniform int   u_pattern;         // 0 = none, 1 = white, 2 = Gray-code stripes, 3 = black
+uniform int   u_axis;
+uniform int   u_bit;
+uniform bool  u_inv;
+uniform vec2  u_size;            // output size in pixels
 in vec2 v_ndc;
 out vec4 f_color;
 
@@ -61,7 +72,31 @@ float rings(float x) {
 
 void main() {
     vec2 o = vec2(v_ndc.x * 0.5 + 0.5, 0.5 - v_ndc.y * 0.5);
-    vec3 q = u_hinv * vec3(o, 1.0);
+    if (u_pattern != 0) {
+        float val = 0.0;
+        if (u_pattern == 1) {
+            val = 1.0;
+        } else if (u_pattern == 2) {
+            int c = (u_axis == 0) ? int(floor(o.x * u_size.x)) : int(floor(o.y * u_size.y));
+            int g = c ^ (c >> 1);
+            val = float((g >> u_bit) & 1);
+            if (u_inv) val = 1.0 - val;
+        }
+        f_color = vec4(vec3(val), 1.0);
+        return;
+    }
+    vec2 base = o;
+    if (u_use_mesh) {
+        vec2 tc = (o * (u_mesh_size - 1.0) + 0.5) / u_mesh_size;
+        vec2 m = texture(u_mesh, tc).rg;
+        if (any(lessThan(m, vec2(-0.25))) || any(greaterThan(m, vec2(1.25)))) {
+            f_color = vec4(0.0, 0.0, 0.0, 1.0);
+            return;
+        }
+        base = m;
+    }
+    float gm = u_use_gainmap ? texture(u_gainmap, o).r : 1.0;
+    vec3 q = u_hinv * vec3(base, 1.0);
     vec2 s = q.xy / q.z;
     if (q.z <= 0.0 || any(lessThan(s, vec2(0.0))) || any(greaterThan(s, vec2(1.0)))) {
         f_color = vec4(u_bg, 1.0);
@@ -85,12 +120,14 @@ void main() {
         float d = abs(fract(ang - u_sweep + 0.5) - 0.5) * 6.2831853 * max(r, 0.05);
         col = mix(col, vec3(1.0), (1.0 - smoothstep(0.004, 0.010, d)) * step(r, 1.0));
         if (r > 1.0) col *= 0.35;
+    } else if (u_mode == 2) {
+        col = vec3(1.0);
     } else if (u_has_video) {
         col = texture(u_video, uv).rgb;
     } else {
         col = u_bg;
     }
-    f_color = vec4(clamp(col * u_gain, 0.0, 1.0), 1.0);
+    f_color = vec4(clamp(col * u_gain * gm, 0.0, 1.0), 1.0);
 }
 """
 
@@ -189,8 +226,22 @@ class DomePlayer:
             if "brightness" in o:
                 self.gain[n] = float(o["brightness"])
         self.solo: int | None = None
-        self.test = False
+        self.test = 0          # 0 off, 1 grid, 2 flat white
         self.edit = False
+        # camera calibration
+        cc = cfg["calibration"]
+        self.cal_folder = resolve_path(cc["folder"])
+        self.cal_use = bool(cc["use"])
+        self.cal = None              # loaded calibration (ref + per-output textures)
+        self._cal_data = None        # loaded/solved data waiting for GL textures
+        self.cam_index = int(cc["camera"])
+        self.camera = None
+        self.preview = False
+        self.session = None
+        self._solve = None           # {"thread", "progress", "result", "error"}
+        self._k_armed = 0.0
+        self._sim_frame = (None, None)
+        self._preview_next = 0.0
         self.sel_corner = 0
         self.dragging = False
         self.dirty: set[int] = set()
@@ -370,6 +421,31 @@ class DomePlayer:
         ctrl = bool(mods & g.MOD_CONTROL)
         shift = bool(mods & g.MOD_SHIFT)
 
+        if self.session is not None:          # capturing: only Esc (cancel) works
+            if key == g.KEY_ESCAPE:
+                self.session = None
+                self.say("calibration cancelled - nothing was changed", 5)
+            return
+        if self._solve is not None:
+            return
+        if key == g.KEY_C:
+            self.toggle_preview()
+            return
+        if self.preview and key in (g.KEY_LEFT_BRACKET, g.KEY_RIGHT_BRACKET):
+            self.cam_index = max(0, self.cam_index + (1 if key == g.KEY_RIGHT_BRACKET else -1))
+            self.close_camera()
+            self.open_camera()
+            return
+        if key == g.KEY_K:
+            self.start_calibration()
+            return
+        if key == g.KEY_U:
+            if self.cal is None:
+                self.say("no calibration yet - C = check camera, then K K = calibrate")
+            else:
+                self.cal_use = not self.cal_use
+                self.say("calibration ON" if self.cal_use else "calibration OFF (as before calibrating)")
+            return
         if ctrl and key == g.KEY_S:
             self.save_alignment()
             return
@@ -392,7 +468,8 @@ class DomePlayer:
             self._update_cursor()
             return
         if key == g.KEY_T:
-            self.test = not self.test
+            self.test = (self.test + 1) % 3
+            self.say(["test pattern off", "test grid", "flat white (check brightness evenness)"][self.test], 2)
             return
         if key == g.KEY_E or (self.edit and key == g.KEY_ESCAPE):
             self.toggle_edit()
@@ -420,8 +497,13 @@ class DomePlayer:
             if self.edit_target() is None:
                 self.say("first press a monitor number (1-9) to show one output, then E", 5)
                 return
+            if self._calibrated(self.edit_target()) and self.edit_target() != self.cal["ref"]:
+                self.say(f"monitor {self.edit_target()} follows the camera calibration. "
+                         f"Align the reference (monitor {self.cal['ref']}) to move everything, "
+                         "or press U to turn calibration off.", 6)
+                return
             self.edit = True
-            self.test = True
+            self.test = 1
             self.sel_corner = 0
         self._update_cursor()
 
@@ -489,6 +571,196 @@ class DomePlayer:
         hidden = self.hide_cursor and not self.edit
         g.set_input_mode(self.window, g.CURSOR, g.CURSOR_HIDDEN if hidden else g.CURSOR_NORMAL)
 
+    # ---- camera calibration -------------------------------------------------------------
+    def _calibrated(self, num) -> bool:
+        return bool(self.cal_use and self.cal is not None and num in self.cal["tex"])
+
+    def open_camera(self) -> bool:
+        if self.camera is not None:
+            return True
+        cc = dict(self.cfg["calibration"], camera=self.cam_index)
+        try:
+            from .calib.camera import open_camera
+            self.camera = open_camera(cc, self.nums)
+        except Exception as e:  # noqa: BLE001
+            log.exception("camera open failed")
+            self.say(f"camera {self.cam_index} could not be opened: {e}\n"
+                     "R50: Set-up > Choose USB connection app > Video calls/streaming", 7)
+            return False
+        if getattr(self.camera, "source", "x") is None:      # simulated camera
+            self.camera.source = lambda: self._sim_frame
+        return True
+
+    def close_camera(self) -> None:
+        if self.camera is not None:
+            try:
+                self.camera.close()
+            except Exception:
+                pass
+            self.camera = None
+
+    def toggle_preview(self) -> None:
+        if self.preview:
+            self.preview = False
+            self.close_camera()
+            return
+        if self.open_camera():
+            self.preview = True
+
+    def start_calibration(self) -> None:
+        now = time.perf_counter()
+        if now > self._k_armed:
+            self._k_armed = now + 4.0
+            self.say("press K again to start camera calibration\n"
+                     f"(about {int(len(self.nums) * 22 + 5)} s, room dark, camera must not move)", 4)
+            return
+        self._k_armed = 0.0
+        if not self.open_camera():
+            return
+        self.preview = False
+        self.edit = False
+        self.solo = None
+        self.test = 0
+        sizes = {n: (r[2], r[3]) for n, r in self._rects.items()}
+        if any(n not in sizes for n in self.nums):
+            self.say("outputs are not ready yet, try again", 4)
+            return
+        cc = self.cfg["calibration"]
+        from .calib.session import CalibrationSession
+        self.session = CalibrationSession(self.nums, sizes, self.camera, cc["settle_ms"] / 1000.0,
+                                          int(cc["average"]), int(cc["skip_bits"]))
+        try:
+            save_setting(self.cfg["_config_path"], "calibration", "camera", self.cam_index)
+        except OSError:
+            pass
+        log.info("calibration started: %d patterns, outputs %s sizes %s",
+                 len(self.session.steps), self.nums, sizes)
+
+    def _after_capture(self) -> None:
+        ses, self.session = self.session, None
+        if ses.error:
+            self.say(f"calibration stopped: {ses.error}\nnothing was changed", 10)
+            return
+        data = ses.result()
+        ref = self.nums[0]
+        job = {"progress": 0.0, "result": None, "error": None}
+
+        def work():
+            try:
+                from .calib import solve
+                res = solve.solve(data, ref, progress=lambda p: job.__setitem__("progress", p))
+                solve.save(res, self.cal_folder, {"monitors": self.nums,
+                                                  "camera": self.cam_index})
+                job["result"] = solve.load(self.cal_folder)
+            except Exception as e:  # noqa: BLE001
+                log.exception("calibration solve failed")
+                job["error"] = str(e)
+
+        job["thread"] = threading.Thread(target=work, name="calib-solve", daemon=True)
+        job["thread"].start()
+        self._solve = job
+
+    def _check_solve(self) -> None:
+        job = self._solve
+        if job is None or job["thread"].is_alive():
+            return
+        self._solve = None
+        if job["error"]:
+            self.say(f"calibration failed: {job['error']}", 10)
+            return
+        self._cal_data = job["result"]
+        self.cal_use = True
+        self.test = 1
+        st = job["result"]["info"]["stats"]
+        self.say("calibration done and saved.\n"
+                 f"brightness evenness: {st['uniformity_before']*100:.0f}% -> {st['uniformity_after']*100:.0f}% "
+                 f"variation, keeps {st['brightness_kept']*100:.0f}% of the light\n"
+                 "T = grid / white / video   U = compare with calibration off", 12)
+
+    def _build_cal_textures(self, rects: dict) -> None:
+        """Upload loaded calibration as GL textures (main thread, needs output sizes)."""
+        import numpy as np
+        data, self._cal_data = self._cal_data, None
+        if data is None:
+            return
+        mgl = self.mgl
+        if self.cal is not None:
+            for t in self.cal["tex"].values():
+                for x in t.values():
+                    if hasattr(x, "release"):
+                        x.release()
+        tex = {}
+        for n, o in data["outputs"].items():
+            if n not in rects:
+                continue
+            if tuple(o["size"]) != (rects[n][2], rects[n][3]):
+                msg = (f"calibration of monitor {n} was made at {o['size'][0]}x{o['size'][1]}, "
+                       f"now {rects[n][2]}x{rects[n][3]} - calibrate again (K K)")
+                log.warning(msg)
+                self.messages.append(msg)
+                continue
+            t = {}
+            g = np.ascontiguousarray(o["gain"], np.float32)
+            t["gain"] = self.ctx.texture((g.shape[1], g.shape[0]), 1, g.tobytes(), dtype="f4")
+            if o["mesh"] is not None:
+                m = np.nan_to_num(o["mesh"], nan=-10.0).astype(np.float32)
+                t["mesh"] = self.ctx.texture((m.shape[1], m.shape[0]), 2, np.ascontiguousarray(m).tobytes(), dtype="f4")
+                t["mesh_size"] = (float(m.shape[1]), float(m.shape[0]))
+            for x in t.values():
+                if hasattr(x, "filter"):
+                    x.filter = (mgl.LINEAR, mgl.LINEAR)
+                    x.repeat_x = x.repeat_y = False
+            tex[n] = t
+        if data["ref"] not in tex:
+            log.warning("calibration reference monitor %s is not available, calibration not used", data["ref"])
+            self.cal = None
+            return
+        self.cal = {"ref": data["ref"], "tex": tex, "info": data.get("info", {})}
+        log.info("calibration loaded for monitors %s (reference %s)", sorted(tex), data["ref"])
+
+    def load_saved_calibration(self) -> None:
+        try:
+            from .calib import solve
+            self._cal_data = solve.load(self.cal_folder)
+        except Exception as e:  # noqa: BLE001
+            log.warning("could not load calibration from %s: %s", self.cal_folder, e)
+            self._cal_data = None
+
+    def _grab_outputs(self, fw: int, fh: int) -> None:
+        """Simulated camera only: hand it what every output shows right now."""
+        import numpy as np
+        raw = self.ctx.screen.read(viewport=(0, 0, fw, fh), components=3)
+        img = np.frombuffer(raw, np.uint8).reshape(fh, fw, 3)[::-1]
+        self._sim_frame = (time.perf_counter(),
+                           {n: img[y:y + h, x:x + w] for n, (x, y, w, h) in self._rects.items()})
+
+    def draw_preview(self, w: int, h: int, now: float) -> None:
+        if now >= self._preview_next:
+            self._preview_next = now + 0.1
+            frame = self.camera.latest() if self.camera else None
+            if frame is None:
+                self.preview_info.set_text(f"camera {self.cam_index}: waiting for picture...", color=(255, 200, 80))
+                return
+            import numpy as np
+            from PIL import Image
+            gray = frame.mean(axis=2) if frame.ndim == 3 else frame
+            over = float(np.mean(gray >= 250)) * 100
+            img = Image.fromarray(np.ascontiguousarray(frame[..., ::-1]) if frame.ndim == 3 else frame)
+            scale = min(w * 0.6 / img.width, h * 0.6 / img.height)
+            self.preview_img.set_image(img.resize((max(1, int(img.width * scale)), max(1, int(img.height * scale)))))
+            fh_, fw_ = frame.shape[:2]
+            black = float(gray.max()) < 10
+            hint = ("  <- picture is all black: probably not the R50 (e.g. an NDI virtual webcam), "
+                    "press ] for the next camera" if black else
+                    "  <- too bright, lower exposure" if over > 1 else "")
+            self.preview_info.set_text(
+                f"CAMERA {self.cam_index}  {fw_}x{fh_}   over-exposed: {over:.1f}%{hint}\n"
+                "[ ] = other camera    K K = start calibration    C = close",
+                color=(255, 230, 120) if over <= 1 and not black else (255, 120, 90))
+        iw, ih = self.preview_img.size
+        self.preview_img.draw(w, h, x=(w - iw) // 2, y=(h - ih) // 2)
+        self.preview_info.draw(w, h, x=(w - self.preview_info.size[0]) // 2, y=max(10, (h - ih) // 2 - self.preview_info.size[1] - 8))
+
     # ---- GL resources --------------------------------------------------------------------
     def create_gl(self):
         import moderngl
@@ -523,6 +795,10 @@ class DomePlayer:
         self.mark.set_image(_marker((255, 255, 255)))
         self.mark_sel = TextOverlay(self.ctx, 10)
         self.mark_sel.set_image(_marker((255, 220, 0), 40))
+        self.preview_img = TextOverlay(self.ctx, 10)
+        self.preview_info = TextOverlay(self.ctx, max(20, fs))
+        self.progress_overlay = TextOverlay(self.ctx, max(24, fs + 4))
+        self.load_saved_calibration()     # U turns it on/off; calibration.use = the start state
 
     def ensure_video_target(self):
         if self.video_size is None:
@@ -691,13 +967,26 @@ class DomePlayer:
             if fw == 0 or fh == 0:
                 time.sleep(0.01)
                 continue
+            if self._cal_data is not None and self._rects:
+                self._build_cal_textures(self._rects)
             self.draw_frame(fw, fh, bg, now)
+            if self.camera is not None and self.camera.index == -1 and (self.session or self.preview):
+                self._grab_outputs(fw, fh)
 
             glfw.swap_buffers(self.window)
             self.render_ctx.report_swap()
             self.stats.on_swap(self.vsync)
             self.frame_no += 1
 
+            # 3) camera calibration: take pictures, then solve in the background
+            if self.session is not None:
+                self.session.presented(time.perf_counter())
+                self.session.poll()
+                if self.session.done:
+                    self._after_capture()
+            self._check_solve()
+
+        self.close_camera()
         self.shutdown()
 
     def draw_frame(self, fw: int, fh: int, bg, now: float) -> None:
@@ -709,13 +998,25 @@ class DomePlayer:
 
         rects = self.output_rects(fw, fh)
         self._rects = {n: (x, y, w, h) for n, x, y, w, h in rects}
+
+        if self.session is not None:     # calibration patterns only, no text at all
+            st = self.session.step
+            for n, x, y, w, h in rects:
+                self.ctx.viewport = (x, fh - y - h, w, h)
+                if st is None or st.num != n:
+                    pat = 3
+                else:
+                    pat = 1 if st.kind == "white" else 2
+                self.draw_pattern(pat, w, h, st)
+            return
+
         visible = [r for r in rects if self.solo is None or r[0] == self.solo]
         target = self.edit_target() if self.edit else None
 
         for n, x, y, w, h in visible:
             self.ctx.viewport = (x, fh - y - h, w, h)
             self.draw_output(n, w, h, bg)
-            if self.test:
+            if self.test == 1:
                 self.labels[n].draw(w, h, center=True)
             if n == target:
                 pts = self.corners_for(n, w, h)
@@ -733,11 +1034,17 @@ class DomePlayer:
         else:
             w, h = fw, fh
             self.ctx.viewport = (0, 0, fw, fh)
-        if self.show_stats and not self.edit:
+        if self.preview:
+            self.draw_preview(w, h, now)
+        elif self.show_stats and not self.edit:
             if now >= self._next_stats:
                 self._next_stats = now + 0.25
                 self.overlay.set_text(self.stats_text())
             self.overlay.draw(w, h)
+        if self._solve is not None:
+            self.progress_overlay.set_text(
+                f"calculating calibration ... {int(self._solve['progress'] * 100)}%", color=(140, 255, 160))
+            self.progress_overlay.draw(w, h, center=True)
         msgs = list(self.messages)
         if (self._file_loaded and self._mpv_errors and now - self._load_time > 3.0
                 and self.prop("idle-active")):
@@ -755,7 +1062,14 @@ class DomePlayer:
     def draw_output(self, num: int, w: int, h: int, bg) -> None:
         p = self.cfg["preview"]
         prog = self.prog
-        corners = self.corners_for(num, w, h)
+        cal = self.cal["tex"].get(num) if self._calibrated(num) else None
+        if cal is not None and "mesh" in cal:
+            # stacked output: show what the reference shows at the same spot on the dome
+            ref = self.cal["ref"]
+            rr = self._rects.get(ref, (0, 0, w, h))
+            corners = self.corners_for(ref, rr[2], rr[3])
+        else:
+            corners = self.corners_for(num, w, h)
         try:
             hinv = warp.output_to_image_uniform(corners)
         except ValueError:
@@ -763,13 +1077,24 @@ class DomePlayer:
         has_video = self.video_tex is not None
         idx = self.nums.index(num) if num in self.nums else 0
         period = max(1, round(self.refresh_hz * 2))
+        use_mesh = cal is not None and "mesh" in cal
+        if use_mesh:
+            cal["mesh"].use(1)
+        if cal is not None:
+            cal["gain"].use(2)
         values = {
+            "u_pattern": 0,
+            "u_use_mesh": use_mesh,
+            "u_mesh": 1,
+            "u_mesh_size": cal["mesh_size"] if use_mesh else (2.0, 2.0),
+            "u_use_gainmap": cal is not None,
+            "u_gainmap": 2,
             "u_hinv": hinv,
             "u_flip": (-1.0 if p["flip_x"] else 1.0, -1.0 if p["flip_y"] else 1.0),
             "u_rot": math.radians(float(p["rotate_deg"])),
             "u_bg": bg,
             "u_gain": self.gain.get(num, 1.0) ** (1 / 2.2),   # light output -> signal (gamma 2.2)
-            "u_mode": 1 if self.test else 0,
+            "u_mode": int(self.test),
             "u_tint": TINTS[idx % len(TINTS)],
             "u_sweep": (self.frame_no % period) / period,
             "u_has_video": has_video,
@@ -781,6 +1106,16 @@ class DomePlayer:
                 member.value = value
         if has_video:
             self.video_tex.use(0)
+        self.vao.render(self.mgl.TRIANGLE_STRIP)
+
+    def draw_pattern(self, pattern: int, w: int, h: int, st) -> None:
+        values = {"u_pattern": pattern, "u_size": (float(w), float(h)),
+                  "u_axis": st.axis if st else 0, "u_bit": st.bit if st else 0,
+                  "u_inv": bool(st.inv) if st else False}
+        for name, value in values.items():
+            member = self.prog.get(name, None)
+            if member is not None:
+                member.value = value
         self.vao.render(self.mgl.TRIANGLE_STRIP)
 
     def edit_help(self, num: int) -> str:
@@ -811,7 +1146,12 @@ class DomePlayer:
         dur = self.prop("duration")
         paused = " [PAUSED]" if self.prop("pause") else ""
         showing = "all" if self.solo is None else f"only {self.solo}"
-        flags = (" TEST" if self.test else "") + (" ALIGN" if self.edit else "")
+        flags = (["", " GRID", " WHITE"][self.test]) + (" ALIGN" if self.edit else "")
+        if self.cal is None:
+            cal = "none (C = camera, K K = calibrate)"
+        else:
+            cal = (f"{'ON' if self.cal_use else 'off'}  ref {self.cal['ref']}, "
+                   f"{self.cal['info'].get('created', '?')}  (U = on/off)")
         return "\n".join([
             f"DomePlayer{paused}",
             f"render fps   {st.render_fps:5.1f}   (display {self.refresh_hz:.0f} Hz, vsync {'on' if self.vsync else 'off'})",
@@ -824,8 +1164,9 @@ class DomePlayer:
             f"time         {fmt_time(pos)} / {fmt_time(dur)}   loop #{self.loop_count}",
             f"gpu          {self.gpu_name}",
             f"outputs      {', '.join(map(str, self.nums))}   showing {showing}{flags}",
+            f"calibration  {cal}",
             f"uptime       {fmt_time(st.uptime)}",
-            "keys         F1 stats | T test grid | 1-9 one output, 0 all | E align | Space pause | Esc quit",
+            "keys         F1 stats | T grid/white | 1-9 one output, 0 all | E align | C camera | K K calibrate | Esc quit",
         ])
 
     def shutdown(self):
@@ -862,6 +1203,18 @@ def main(argv: list[str] | None = None) -> int:
     if "--identify" in argv:
         from .identify import main as identify_main
         return identify_main()
+    if "--self-test" in argv:   # checks the packaged parts load (used after building the .exe)
+        log_file = setup_logging("info")
+        try:
+            import cv2
+            import numpy
+            import_mpv()
+            from .calib import camera, session, solve  # noqa: F401
+            log.info("self-test OK: opencv %s, numpy %s", cv2.__version__, numpy.__version__)
+            return 0
+        except Exception:  # noqa: BLE001
+            log.exception("self-test failed")
+            return 1
     if "--play" not in argv:
         # No arguments: open the small start window (pick video + monitor, then play).
         # Use --play to start playing straight away (for auto-start at boot).

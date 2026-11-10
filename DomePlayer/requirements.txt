@@ -3,3 +3,5 @@ glfw==2.11.0
 moderngl==5.13.0
 pillow>=10.1
 py7zr>=0.22
+numpy>=1.26
+opencv-python-headless>=4.8

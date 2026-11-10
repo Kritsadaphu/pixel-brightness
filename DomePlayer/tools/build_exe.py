@@ -29,7 +29,8 @@ QUICKSTART = """DomePlayer - วิธีใช้ (ไม่ต้องติ�
 5. กด "เล่น"
 
 ระหว่างเล่น:  F1 = หน้าสถิติ   Space = หยุด/เล่น   Home = เริ่มใหม่   Esc = ปิด
-โหมด stack 6 ตัว:  T = ตารางทดสอบ   1-9 = ดูทีละจอ   0 = ทุกจอ   E = ปรับมุม   Ctrl+S = บันทึก
+โหมด stack 6 ตัว:  T = ตาราง/ขาว/ปิด   1-9 = ดูทีละจอ   0 = ทุกจอ   E = ปรับมุม   Ctrl+S = บันทึก
+ปรับอัตโนมัติด้วยกล้อง R50:  C = ดูภาพกล้อง   K แล้ว K = เริ่ม calibrate   U = เปิด/ปิดผล calibrate
 (วิธีปรับให้ภาพทับกันสนิท ดูใน README.md หัวข้อ "โหมด stack")
 
 ถ้ามีปัญหา ส่งไฟล์ logs\\domeplayer.log มาดู
@@ -50,6 +51,8 @@ def main() -> int:
         "--paths", str(APP_DIR),
         "--collect-all", "glfw", "--collect-all", "moderngl", "--collect-all", "glcontext",
         "--hidden-import", "domeplayer.launcher", "--hidden-import", "domeplayer.identify",
+        "--hidden-import", "domeplayer.calib.camera", "--hidden-import", "domeplayer.calib.session",
+        "--hidden-import", "domeplayer.calib.solve", "--hidden-import", "cv2", "--hidden-import", "numpy",
         "--exclude-module", "py7zr",
         str(APP_DIR / "tools" / "domeplayer_exe.py"),
     ]
@@ -63,6 +66,14 @@ def main() -> int:
         shutil.copyfile(APP_DIR / name, OUT / name)
     (OUT / "อ่านก่อน-README.txt").write_text(QUICKSTART, encoding="utf-8-sig")
     shutil.rmtree(work, ignore_errors=True)
+
+    test = subprocess.run([str(OUT / "DomePlayer.exe"), "--self-test"], cwd=str(OUT))
+    log_file = OUT / "logs" / "domeplayer.log"
+    if test.returncode != 0:
+        print(f"self-test of the built DomePlayer.exe FAILED, see {log_file}")
+        return 1
+    print("self-test OK")
+    log_file.unlink(missing_ok=True)
 
     zip_base = DIST / "DomePlayer-offline"
     shutil.make_archive(str(zip_base), "zip", root_dir=DIST, base_dir="DomePlayer")
