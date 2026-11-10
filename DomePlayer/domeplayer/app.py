@@ -511,6 +511,17 @@ def main(argv: list[str] | None = None) -> int:
     if "--identify" in argv:
         from .identify import main as identify_main
         return identify_main()
+    if "--play" not in argv:
+        # No arguments: open the small start window (pick video + monitor, then play).
+        # Use --play to start playing straight away (for auto-start at boot).
+        try:
+            from .launcher import main as launcher_main
+            return launcher_main()
+        except Exception as e:  # noqa: BLE001 - the .exe has no console, so show it
+            log_file = setup_logging("info")
+            log.exception("start window failed")
+            show_fatal(f"{e}\n\nDetails are in {log_file}")
+            return 1
 
     cfg_path = None
     if "--config" in argv:

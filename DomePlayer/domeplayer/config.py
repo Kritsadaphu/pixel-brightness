@@ -6,9 +6,15 @@ from __future__ import annotations
 
 import copy
 import json
+import sys
 from pathlib import Path
 
-APP_DIR = Path(__file__).resolve().parent.parent
+# The DomePlayer folder (config.json, lib/, logs/). When packaged as DomePlayer.exe
+# (PyInstaller) that is the folder holding the .exe, not the bundled source.
+if getattr(sys, "frozen", False):
+    APP_DIR = Path(sys.executable).resolve().parent
+else:
+    APP_DIR = Path(__file__).resolve().parent.parent
 
 DEFAULTS: dict = {
     "video": {
