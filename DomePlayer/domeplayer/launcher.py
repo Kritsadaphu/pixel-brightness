@@ -1,7 +1,9 @@
 """Start window: pick the video file and the monitor, then press Play.
 
 Choices are saved into config.json, so the next start remembers them. Playback runs in a
-separate process (DomePlayer.exe --play) so the player always starts with a clean state.
+separate process, looked after by the watchdog (DomePlayer.exe --watch), which restarts the
+player if it crashes or freezes. Also: readiness check, calibration rollback, problem report,
+start with Windows.
 """
 from __future__ import annotations
 
@@ -149,6 +151,11 @@ def main() -> int:
     ttk.Checkbutton(opts, text="เปิดเสียง", variable=audio).pack(side="left", padx=(0, 16))
     ttk.Checkbutton(opts, text="โชว์หน้าสถิติ (F1)", variable=stats).pack(side="left")
 
+    from . import watchdog
+    autostart = tk.BooleanVar(value=watchdog.autostart_enabled())
+    ttk.Checkbutton(frm, text="เปิดเล่นเองทุกครั้งที่เปิดเครื่อง (และเปิดใหม่เองถ้าโปรแกรมค้าง/ปิดไปเอง)",
+                    variable=autostart).grid(row=8, column=0, columnspan=2, sticky="w", padx=14, pady=(0, 4))
+
     def play():
         path = video.get().strip().strip('"')
         if not path or not Path(path).is_file():
@@ -175,7 +182,11 @@ def main() -> int:
             messagebox.showerror("DomePlayer", f"บันทึก config.json ไม่ได้:\n{e}")
             return
         try:
-            subprocess.Popen(_self_command("--play"), cwd=str(APP_DIR))
+            watchdog.set_autostart(bool(autostart.get()))
+        except OSError as e:
+            messagebox.showwarning("DomePlayer", f"ตั้งเปิดเองตอนเปิดเครื่องไม่ได้:\n{e}")
+        try:
+            subprocess.Popen(_self_command("--watch"), cwd=str(APP_DIR))
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("DomePlayer", f"เปิดตัวเล่นไม่ได้:\n{e}")
             return
@@ -184,6 +195,124 @@ def main() -> int:
     ttk.Button(frm, text="▶  เล่น", command=play).grid(row=6, column=0, columnspan=2, sticky="we", padx=14, pady=(10, 4), ipady=8)
     ttk.Label(frm, text="ระหว่างเล่น:  F1 สถิติ  |  T ตารางทดสอบ  |  1-9 ดูทีละจอ, 0 ทุกจอ  |  E ปรับมุม  |  Esc ปิด",
               foreground="#555").grid(row=7, column=0, columnspan=2, **pad)
+
+    # ---- tools: readiness check, calibration rollback, problem report -------------------
+    tools = ttk.Frame(frm)
+    tools.grid(row=9, column=0, columnspan=2, sticky="we", padx=14, pady=(6, 10))
+    status = tk.StringVar(value="")
+    ttk.Label(frm, textvariable=status, foreground="#a60").grid(row=10, column=0, columnspan=2, sticky="w", padx=14)
+
+    def show_text(title: str, text: str) -> None:
+        win = tk.Toplevel(root)
+        win.title(title)
+        txt = tk.Text(win, width=100, height=34, wrap="word", font=("Leelawadee UI", 11))
+        sb = ttk.Scrollbar(win, command=txt.yview)
+        txt.configure(yscrollcommand=sb.set)
+        txt.tag_configure("ok", foreground="#080")
+        txt.tag_configure("warn", foreground="#b60")
+        txt.tag_configure("fail", foreground="#c00", font=("Leelawadee UI", 11, "bold"))
+        for line in text.splitlines():
+            tag = ("fail" if line.startswith("❌") else "warn" if line.startswith("⚠") else
+                   "ok" if line.startswith("✅") else "")
+            txt.insert("end", line + "\n", tag)
+        txt.configure(state="disabled")
+        txt.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+
+    def check():
+        status.set("กำลังตรวจความพร้อม… ประมาณ 30-60 วินาที (อย่าเพิ่งปิด)")
+        for b in tool_buttons:
+            b.configure(state="disabled")
+        try:
+            proc = subprocess.Popen(_self_command("--check"), cwd=str(APP_DIR))
+        except Exception as e:  # noqa: BLE001
+            status.set("")
+            messagebox.showerror("DomePlayer", str(e))
+            return
+
+        def wait():
+            if proc.poll() is None:
+                root.after(500, wait)
+                return
+            for b in tool_buttons:
+                b.configure(state="normal")
+            status.set("")
+            f = APP_DIR / "logs" / "check.txt"
+            if f.exists():
+                show_text("DomePlayer - ตรวจความพร้อม", f.read_text(encoding="utf-8-sig"))
+            else:
+                messagebox.showerror("DomePlayer", "ตรวจไม่สำเร็จ ดู logs\\domeplayer.log")
+        root.after(500, wait)
+
+    def rollback():
+        from . import backup
+        from .config import resolve_path
+        try:
+            c = load_config()
+        except ConfigError as e:
+            messagebox.showerror("DomePlayer", str(e))
+            return
+        folder = resolve_path(c["calibration"]["folder"])
+        baks = backup.list_backups(folder)
+        if not baks:
+            messagebox.showinfo("DomePlayer", "ยังไม่มีค่า calibrate สำรอง\n(จะมีหลังจาก calibrate ครั้งที่ 2 เป็นต้นไป)")
+            return
+        reasons = {"before new calibration": "ก่อน calibrate ใหม่", "before dome circle change": "ก่อนแก้วงกลมโดม",
+                   "before restore": "ก่อนย้อนค่า"}
+        win = tk.Toplevel(root)
+        win.title("ย้อนค่า calibrate")
+        ttk.Label(win, text="เลือกชุดที่ต้องการใช้ (ทำเมื่อ … / เก็บสำรองเมื่อ …)").pack(anchor="w", padx=12, pady=(10, 4))
+        lb = tk.Listbox(win, width=90, height=min(15, len(baks)), font=("Leelawadee UI", 11))
+        for b in baks:
+            st = b["stats"] or {}
+            lb.insert("end", f"ทำเมื่อ {b['created']}   (สำรองเมื่อ {b['saved']} {reasons.get(b['reason'], b['reason'])})"
+                             f"   โหมด {b['mode']}   แสงต่างกัน {st.get('uniformity_after', 0)*100:.0f}%")
+        lb.selection_set(0)
+        lb.pack(padx=12, pady=4)
+
+        def do():
+            sel = lb.curselection()
+            if not sel:
+                return
+            b = baks[sel[0]]
+            if not messagebox.askyesno("DomePlayer", f"ใช้ค่า calibrate ที่ทำเมื่อ {b['created']} ?\n"
+                                       "(ค่าปัจจุบันจะถูกเก็บสำรองไว้ก่อน ย้อนกลับได้)", parent=win):
+                return
+            try:
+                backup.restore(folder, Path(c["_config_path"]), b["path"])
+            except Exception as e:  # noqa: BLE001
+                messagebox.showerror("DomePlayer", f"ย้อนค่าไม่สำเร็จ:\n{e}", parent=win)
+                return
+            win.destroy()
+            messagebox.showinfo("DomePlayer", "ย้อนค่าแล้ว กด เล่น ได้เลย")
+        ttk.Button(win, text="ใช้ค่านี้", command=do).pack(pady=(4, 12), ipadx=20)
+
+    def report():
+        status.set("กำลังรวบรวมข้อมูล…")
+        root.update()
+        try:
+            from .report import make_report
+            z = make_report()
+        except Exception as e:  # noqa: BLE001
+            status.set("")
+            messagebox.showerror("DomePlayer", f"สร้างไฟล์ไม่สำเร็จ:\n{e}")
+            return
+        status.set("")
+        if os.name == "nt":
+            try:
+                subprocess.Popen(["explorer", "/select,", str(z)])
+            except Exception:  # noqa: BLE001
+                pass
+        messagebox.showinfo("DomePlayer", f"สร้างไฟล์แล้ว:\n{z}\n\nส่งไฟล์นี้ให้ช่างได้เลย")
+
+    tool_buttons = [
+        ttk.Button(tools, text="ตรวจความพร้อม", command=check),
+        ttk.Button(tools, text="ย้อนค่า calibrate…", command=rollback),
+        ttk.Button(tools, text="เก็บข้อมูลส่งช่าง (zip)", command=report),
+    ]
+    for i, b in enumerate(tool_buttons):
+        b.grid(row=0, column=i, sticky="we", padx=(0 if i == 0 else 6, 0), ipady=3)
+        tools.columnconfigure(i, weight=1)
 
     root.bind("<Return>", lambda _e: play())
     root.mainloop()

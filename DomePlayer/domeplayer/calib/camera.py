@@ -77,6 +77,11 @@ class UvcCamera:
             got = [f for ts, f in self._frames if ts >= t_ready]
         return got[:n] if len(got) >= n else None
 
+    def frames_since(self, since: float):
+        """[(arrival time, frame)] that arrived after 'since'."""
+        with self._lock:
+            return [(ts, f) for ts, f in self._frames if ts > since]
+
     def close(self):
         self._stop = True
         self._thread.join(timeout=2)
@@ -86,10 +91,13 @@ class UvcCamera:
 class SimCamera:
     """Looks at the player's outputs as if 'nums' projectors were stacked on a curved surface."""
 
-    def __init__(self, nums: list[int], size=(960, 540), seed: int = 7, layout: str = "stack"):
+    def __init__(self, nums: list[int], size=(960, 540), seed: int = 7, layout: str = "stack",
+                 delay_s: float = 0.0):
         import numpy as np
 
         self.np = np
+        self.delay_s = delay_s          # pretend USB delay (pictures arrive this late)
+        self._hist = collections.deque(maxlen=400)
         self.index = -1
         self.size = size
         self.alive = True
@@ -190,19 +198,35 @@ class SimCamera:
         out = np.clip(acc, 0, 1) ** (1 / 2.2) * 255
         return out[..., ::-1].astype(np.uint8)                          # BGR like OpenCV
 
-    def latest(self):
-        if self.source is None:
-            return None
-        _, images = self.source()
-        return self.capture(images) if images else None
-
-    def wait_frames(self, t_ready: float, n: int):
+    def _seen(self):
+        """What the camera delivers now: the outputs as they were delay_s ago."""
         if self.source is None:
             return None
         ts, images = self.source()
-        if ts is None or ts < t_ready or not images:
+        if ts is None or not images:
+            return None
+        if not self._hist or self._hist[-1][0] != ts:
+            self._hist.append((ts, images))
+        cut = time.perf_counter() - self.delay_s
+        old = [im for t, im in self._hist if t <= cut]
+        return old[-1] if old else None
+
+    def latest(self):
+        images = self._seen()
+        return self.capture(images) if images else None
+
+    def wait_frames(self, t_ready: float, n: int):
+        images = self._seen()          # always look, so the delay history keeps filling
+        if time.perf_counter() < t_ready or not images:
             return None
         return [self.capture(images) for _ in range(n)]
+
+    def frames_since(self, since: float):
+        now = time.perf_counter()
+        images = self._seen()
+        if now - since < 1 / 30:
+            return []
+        return [(now, self.capture(images))] if images else []
 
     def close(self):
         pass
@@ -210,5 +234,6 @@ class SimCamera:
 
 def open_camera(cfg_cal: dict, nums: list[int]):
     if cfg_cal.get("simulate"):
-        return SimCamera(nums, layout="dome" if cfg_cal.get("mode") == "dome" else "stack")
+        return SimCamera(nums, layout="dome" if cfg_cal.get("mode") == "dome" else "stack",
+                         delay_s=float(cfg_cal.get("simulate_delay_ms", 0)) / 1000.0)
     return UvcCamera(int(cfg_cal["camera"]), int(cfg_cal["camera_width"]), int(cfg_cal["camera_height"]))

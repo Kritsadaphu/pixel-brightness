@@ -160,6 +160,10 @@ def setup_logging(level: str) -> Path:
         RotatingFileHandler(log_file, maxBytes=2_000_000, backupCount=3, encoding="utf-8")
     ]
     if sys.stdout is not None:  # pythonw.exe has no console
+        try:
+            sys.stdout.reconfigure(errors="replace")   # Thai text on an old console code page
+        except Exception:  # noqa: BLE001
+            pass
         handlers.append(logging.StreamHandler(sys.stdout))
     logging.basicConfig(
         level=getattr(logging, str(level).upper(), logging.INFO),
@@ -173,6 +177,8 @@ def setup_logging(level: str) -> Path:
 def import_mpv():
     """Make lib/libmpv-2.dll findable, then import python-mpv."""
     lib_dir = APP_DIR / "lib"
+    # CUDA numbers the GPUs in PCI slot order, like nvidia-smi (cuda_device in config)
+    os.environ.setdefault("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
     if os.name == "nt":
         os.environ["PATH"] = str(lib_dir) + os.pathsep + os.environ.get("PATH", "")
         if hasattr(os, "add_dll_directory"):
@@ -265,6 +271,7 @@ class DomePlayer:
         self.toast: tuple[str, float] | None = None
         self.frame_no = 0
         self._rects: dict[int, tuple[int, int, int, int]] = {}
+        self.exit_code = 0
 
     # ---- window ----------------------------------------------------------------------
     def create_window(self):
@@ -687,7 +694,7 @@ class DomePlayer:
         if now > self._k_armed:
             self._k_armed = now + 4.0
             self.say("press K again to start camera calibration\n"
-                     f"(about {int(len(self.nums) * 22 + 5)} s, room dark, camera must not move)", 4)
+                     f"(about {int(len(self.nums) * 22 + 17)} s, room dark, camera must not move)", 4)
             return
         self._k_armed = 0.0
         if not self.open_camera():
@@ -703,7 +710,8 @@ class DomePlayer:
         cc = self.cfg["calibration"]
         from .calib.session import CalibrationSession
         self.session = CalibrationSession(self.nums, sizes, self.camera, cc["settle_ms"] / 1000.0,
-                                          int(cc["average"]), int(cc["skip_bits"]))
+                                          int(cc["average"]), int(cc["skip_bits"]),
+                                          measure_delay=bool(cc.get("measure_delay", True)))
         try:
             save_setting(self.cfg["_config_path"], "calibration", "camera", self.cam_index)
         except OSError:
@@ -731,6 +739,12 @@ class DomePlayer:
         def work():
             try:
                 from .calib import solve
+                from . import backup
+                try:
+                    backup.backup(self.cal_folder, Path(self.cfg["_config_path"]),
+                                  "before new calibration" if save_raw else "before dome circle change")
+                except Exception:  # noqa: BLE001 - a failed backup must not stop calibrating
+                    log.exception("calibration backup failed")
                 if save_raw:
                     try:
                         solve.save_capture(data, self.cal_folder)
@@ -1049,9 +1063,29 @@ class DomePlayer:
         glfw = self.glfw
         bg = tuple(c / 255.0 for c in self.cfg["preview"]["background"])
 
+        keep_awake()
+        self._monitors_changed = None
+        glfw.set_monitor_callback(lambda _m, _ev: setattr(self, "_monitors_changed", time.perf_counter()))
+        next_beat = 0.0
+
         while self.running and not glfw.window_should_close(self.window):
             glfw.poll_events()
             now = time.perf_counter()
+            if SUPERVISED and now >= next_beat:
+                next_beat = now + 2.0
+                try:
+                    HEARTBEAT.write_text(str(time.time()), encoding="ascii")
+                except OSError:
+                    pass
+            if self._monitors_changed is not None and now - self._monitors_changed > 3.0:
+                self._monitors_changed = None
+                log.warning("monitors were connected/disconnected (projector turned off or on?)")
+                if SUPERVISED and self.cfg["display"]["fullscreen"]:
+                    log.warning("restarting the player so the outputs are set up again")
+                    self.exit_code = 3
+                    self.running = False
+                else:
+                    self.say("a monitor was connected or disconnected - restart DomePlayer", 8)
 
             if not self._file_loaded and now >= next_file_check:
                 next_file_check = now + 5.0      # keep retrying (e.g. a USB drive mounting late)
@@ -1117,7 +1151,9 @@ class DomePlayer:
             st = self.session.step
             for n, x, y, w, h in rects:
                 self.ctx.viewport = (x, fh - y - h, w, h)
-                if st is None or st.num != n:
+                if st is not None and st.kind == "probe":   # camera delay check: all flash
+                    pat = 3 if st.inv else 1
+                elif st is None or st.num != n:
                     pat = 3
                 else:
                     pat = 1 if st.kind == "white" else 2
@@ -1309,9 +1345,28 @@ class DomePlayer:
             pass
 
 
+SUPERVISED = False                      # started by the watchdog (--supervised)
+HEARTBEAT = APP_DIR / "logs" / "heartbeat.txt"
+EXIT_MONITORS_CHANGED = 3
+
+
+def keep_awake() -> None:
+    """Stop Windows from sleeping / turning the screens off / screensaver while we run."""
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+        ES_CONTINUOUS, ES_SYSTEM_REQUIRED, ES_DISPLAY_REQUIRED = 0x80000000, 0x1, 0x2
+        ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED)
+    except Exception:  # noqa: BLE001
+        log.warning("could not stop Windows from sleeping")
+
+
 def show_fatal(message: str) -> None:
     """Show an error even when started with pythonw.exe (no console)."""
     log.error(message)
+    if SUPERVISED:      # the watchdog restarts us; a message box would only block that
+        return
     if os.name == "nt":
         try:
             import ctypes
@@ -1324,6 +1379,17 @@ def show_fatal(message: str) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
+    global SUPERVISED
+    SUPERVISED = "--supervised" in argv
+    if "--watch" in argv or "--autostart" in argv:
+        from .watchdog import main as watch_main
+        return watch_main(autostart="--autostart" in argv)
+    if "--check" in argv:
+        from .check import main as check_main
+        return check_main()
+    if "--report" in argv:
+        from .report import main as report_main
+        return report_main()
     if "--identify" in argv:
         from .identify import main as identify_main
         return identify_main()
@@ -1334,6 +1400,7 @@ def main(argv: list[str] | None = None) -> int:
             import numpy
             import_mpv()
             from .calib import camera, session, solve  # noqa: F401
+            from . import backup, check, report, watchdog  # noqa: F401
             log.info("self-test OK: opencv %s, numpy %s", cv2.__version__, numpy.__version__)
             return 0
         except Exception:  # noqa: BLE001
@@ -1371,4 +1438,5 @@ def main(argv: list[str] | None = None) -> int:
         log.exception("fatal error")
         show_fatal(f"{e}\n\nDetails are in {log_file}")
         return 1
-    return 0
+    log.info("DomePlayer closed (exit code %d)", app.exit_code)
+    return app.exit_code

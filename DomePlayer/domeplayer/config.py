@@ -88,11 +88,13 @@ DEFAULTS: dict = {
         "camera": 0,             # webcam number; change with [ and ] in the camera preview
         "camera_width": 1920,
         "camera_height": 1080,
-        "settle_ms": 450,        # wait after each pattern before taking the picture
+        "settle_ms": 450,        # shortest wait after each pattern before taking the picture
+        "measure_delay": True,   # measure the camera delay first and wait longer if needed
         "average": 2,            # pictures averaged per pattern
         "skip_bits": 2,          # finest stripes not used (4 px), the camera can't resolve them
         "folder": "calibration", # where results are saved (next to config.json)
         "simulate": False,       # test without a camera (pretend projectors)
+        "simulate_delay_ms": 0,  # (test only) pretend camera delay
         # "dome"  = projectors each cover part of the dome (fanned out, overlapping); the
         #           camera looks up at the dome and dome_circle marks the dome's edge in its picture
         # "stack" = all projectors show the whole picture on the same area, lined up on monitor 1

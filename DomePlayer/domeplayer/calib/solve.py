@@ -324,6 +324,15 @@ def save_capture(data: dict, folder: Path) -> None:
     np.savez_compressed(tmp, **arrs)
     tmp.replace(folder / "capture.npz")
     (folder / "capture.json").write_text(json.dumps(meta), encoding="utf-8")
+    try:
+        import cv2
+        cv2.imwrite(str(folder / "camera_black.jpg"), arrs["black"])
+        whites = [arrs[f"{n}_white"] for n in data["projectors"]]
+        cv2.imwrite(str(folder / "camera_white_all.jpg"), np.max(whites, axis=0))
+        for n in data["projectors"]:
+            cv2.imwrite(str(folder / f"camera_white_{n}.jpg"), arrs[f"{n}_white"])
+    except Exception:  # noqa: BLE001 - pictures are only for looking at
+        pass
 
 
 def load_capture(folder: Path) -> dict | None:

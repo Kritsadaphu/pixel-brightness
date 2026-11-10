@@ -35,7 +35,12 @@ QUICKSTART = """DomePlayer - วิธีใช้ (ไม่ต้องติ�
    C = ดูภาพกล้อง + กำหนดขอบวงกลมโดม (ลูกศร เลื่อน, +/- ขนาด, , . หมุนด้านหน้า, Ctrl+S บันทึก)
 (ละเอียดใน README.md หัวข้อ "โหมดโดม")
 
-ถ้ามีปัญหา ส่งไฟล์ logs\\domeplayer.log มาดู
+ก่อนใช้งานจริงทุกครั้งที่ไปหน้างาน: กด "ตรวจความพร้อม" แก้ข้อที่ขึ้น ❌ ก่อน
+calibrate แล้วแย่ลง: กด "ย้อนค่า calibrate…" เลือกชุดก่อนหน้า
+ติ๊ก "เปิดเล่นเองทุกครั้งที่เปิดเครื่อง" = บูตเครื่องแล้วเล่นเอง ค้าง/ปิดไปเองจะเปิดใหม่เอง (Esc = ปิดจริง)
+เปิดโปรเจคเตอร์ให้ครบ 6 เครื่องก่อน แล้วค่อยเปิดเครื่อง Dell
+ปิด Screensaver ของ Windows (Personalize > Lock screen > Screen saver > None)
+ถ้ามีปัญหา กด "เก็บข้อมูลส่งช่าง (zip)" แล้วส่งไฟล์ zip บน Desktop มาให้ดู
 ค่าตั้งละเอียดอยู่ใน config.json (เปิดด้วย Notepad) ดูคำอธิบายใน README.md
 เล่นทันทีโดยไม่ขึ้นหน้าต่างเลือกไฟล์ (เช่นตอนเปิดเครื่อง): DomePlayer.exe --play
 """
@@ -54,7 +59,8 @@ def main() -> int:
         "--collect-all", "glfw", "--collect-all", "moderngl", "--collect-all", "glcontext",
         "--hidden-import", "domeplayer.launcher", "--hidden-import", "domeplayer.identify",
         "--hidden-import", "domeplayer.calib.camera", "--hidden-import", "domeplayer.calib.session",
-        "--hidden-import", "domeplayer.calib.solve", "--hidden-import", "cv2", "--hidden-import", "numpy",
+        "--hidden-import", "domeplayer.calib.solve", "--hidden-import", "domeplayer.watchdog", "--hidden-import", "domeplayer.check",
+        "--hidden-import", "domeplayer.report", "--hidden-import", "domeplayer.backup", "--hidden-import", "cv2", "--hidden-import", "numpy",
         "--exclude-module", "py7zr",
         str(APP_DIR / "tools" / "domeplayer_exe.py"),
     ]
