@@ -9,9 +9,12 @@ Usage:
 """
 from __future__ import annotations
 
+import gc
 import json
+import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import urllib.request
@@ -55,18 +58,74 @@ def download(url: str, dest: Path) -> None:
     print()
 
 
-def extract(archive: Path) -> None:
+def _is_dll(name: str) -> bool:
+    return name.replace("\\", "/").split("/")[-1].lower() == DLL
+
+
+def _extract_py7zr(archive: Path, out: Path) -> Path:
     import py7zr
 
     with py7zr.SevenZipFile(archive, "r") as z:
-        names = [n for n in z.getnames() if n.replace("\\", "/").split("/")[-1].lower() == DLL]
+        names = [n for n in z.getnames() if _is_dll(n)]
         if not names:
             raise RuntimeError(f"{DLL} is not inside {archive.name}")
-        with tempfile.TemporaryDirectory() as tmp:
-            z.extract(path=tmp, targets=[names[0]])
+        z.extract(path=out, targets=[names[0]])
+    return out / names[0]
+
+
+def _extract_tool(exe: str, list_args: list[str], extract_args: list[str], archive: Path, out: Path) -> Path:
+    """Extract with an external program (Windows tar.exe or 7-Zip's 7z.exe)."""
+    listing = subprocess.run([exe, *list_args, str(archive)], capture_output=True, text=True,
+                             errors="replace", check=True).stdout
+    names = [n.strip().removeprefix("Path = ") for n in listing.splitlines()]
+    names = [n for n in names if _is_dll(n)]
+    if not names:
+        raise RuntimeError(f"{DLL} is not inside {archive.name}")
+    subprocess.run([exe, *extract_args, str(archive), names[0]], cwd=out,
+                   capture_output=True, check=True)
+    found = [p for p in out.rglob("*") if p.is_file() and _is_dll(p.name)]
+    if not found:
+        raise RuntimeError(f"{exe} ran but {DLL} did not appear")
+    return found[0]
+
+
+def _extractors() -> list[tuple[str, object]]:
+    """Ways to open the .7z, tried in order.
+
+    py7zr cannot read archives that use the BCJ2 filter (the mpv builds do), so we fall back to
+    Windows' own tar.exe (reads .7z on recent Windows 10/11) and then to 7-Zip if it is installed.
+    """
+    out: list[tuple[str, object]] = [("py7zr", _extract_py7zr)]
+    sysroot = os.environ.get("SystemRoot", r"C:\Windows")
+    tar = Path(sysroot) / "System32" / "tar.exe"
+    if tar.exists():
+        out.append(("Windows tar", lambda a, o: _extract_tool(str(tar), ["-tf"], ["-xf"], a, o)))
+    for base in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)")):
+        seven = Path(base or "") / "7-Zip" / "7z.exe"
+        if base and seven.exists():
+            out.append(("7-Zip", lambda a, o, s=str(seven): _extract_tool(
+                s, ["l", "-ba", "-slt"], ["e", "-y"], a, o)))
+            break
+    return out
+
+
+def extract(archive: Path) -> None:
+    errors = []
+    for label, fn in _extractors():
+        tmp = Path(tempfile.mkdtemp(prefix="domeplayer-mpv-"))
+        try:
+            dll = fn(archive, tmp)
             LIB_DIR.mkdir(exist_ok=True)
-            shutil.copyfile(Path(tmp) / names[0], LIB_DIR / DLL)
-    print(f"OK: {LIB_DIR / DLL}")
+            shutil.copyfile(dll, LIB_DIR / DLL)
+            print(f"OK ({label}): {LIB_DIR / DLL}")
+            return
+        except Exception as e:  # noqa: BLE001 - try the next way
+            errors.append(f"{label}: {e}")
+            print(f"  {label} could not extract it, trying the next way ...")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+            gc.collect()  # py7zr can leave the archive open when it fails; release it
+    raise RuntimeError("could not extract the archive:\n    " + "\n    ".join(errors))
 
 
 def main(argv: list[str]) -> int:
@@ -85,10 +144,15 @@ def main(argv: list[str]) -> int:
             raise RuntimeError("no matching mpv-dev-x86_64 file in the latest release")
         asset = assets[0]
         print(f"Downloading {asset['name']} ...")
-        with tempfile.TemporaryDirectory() as tmp:
-            archive = Path(tmp) / asset["name"]
+        # Not TemporaryDirectory(): if cleanup fails (file still locked by antivirus or py7zr)
+        # its error would replace the real one and setup would fail although the DLL is in place.
+        tmp = Path(tempfile.mkdtemp(prefix="domeplayer-dl-"))
+        try:
+            archive = tmp / asset["name"]
             download(asset["browser_download_url"], archive)
             extract(archive)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
         return 0
     except Exception as e:  # noqa: BLE001
         print(f"\nCould not download libmpv automatically: {e}")
