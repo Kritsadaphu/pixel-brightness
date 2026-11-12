@@ -327,7 +327,8 @@ def save_capture(data: dict, folder: Path) -> None:
     import numpy as np
     folder.mkdir(parents=True, exist_ok=True)
     arrs = {"black": data["black"].astype(np.uint8)}
-    meta = {"nums": [], "black_drift": data.get("black_drift")}
+    meta = {"nums": [], "black_drift": data.get("black_drift"), "skipped": list(data.get("skipped") or []),
+            "video": data.get("video"), "crop": data.get("crop"), "ports": data.get("ports") or {}}
     for n, P in data["projectors"].items():
         meta["nums"].append({"num": n, "size": list(P["size"])})
         for k in ("px", "py"):   # 1/16 pixel steps in int16, -1 = not seen
@@ -363,4 +364,6 @@ def load_capture(folder: Path) -> dict | None:
         px[bad] = np.nan
         py[bad] = np.nan
         projs[n] = {"px": px, "py": py, "white": z[f"{n}_white"].astype(np.float32), "size": tuple(it["size"])}
-    return {"projectors": projs, "black": z["black"].astype(np.float32), "black_drift": meta.get("black_drift")}
+    return {"projectors": projs, "black": z["black"].astype(np.float32), "black_drift": meta.get("black_drift"),
+            "skipped": list(meta.get("skipped") or []), "video": meta.get("video"), "crop": meta.get("crop"),
+            "ports": meta.get("ports") or {}}

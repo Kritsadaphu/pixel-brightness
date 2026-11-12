@@ -248,6 +248,33 @@ class SimCamera:
         pass
 
 
+class StillCamera:
+    """One saved picture instead of a live camera: the dome as the recorded video saw it, so
+    the dome circle can be set on it."""
+
+    def __init__(self, path):
+        import cv2
+        import numpy as np
+        img = cv2.imdecode(np.fromfile(str(path), np.uint8), cv2.IMREAD_COLOR)   # any folder name
+        if img is None:
+            raise RuntimeError(f"could not read {path}")
+        self.frame = img
+        self.index = -2
+        self.size = (img.shape[1], img.shape[0])
+        self.alive = True
+        self.fps = 0.0
+        self.source = "still"
+
+    def latest(self):
+        return self.frame
+
+    def stale(self) -> bool:
+        return False
+
+    def close(self):
+        pass
+
+
 def open_camera(cfg_cal: dict, nums: list[int]):
     if cfg_cal.get("simulate"):
         return SimCamera(nums, layout="dome" if cfg_cal.get("mode") == "dome" else "stack",

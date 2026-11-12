@@ -73,6 +73,46 @@ def _monitors() -> list[tuple[int, str]]:
         return []
 
 
+def thai_reason(text: str) -> str:
+    """The player's (English) reason why a calibration stopped, as advice in Thai."""
+    t = (text or "").lower()
+    if "over-exposed" in t:
+        return "ภาพในกล้องสว่างเกินไป: ตั้งกล้องเป็น Manual แล้วลด ISO หรือความเร็วชัตเตอร์ลง"
+    if "too bright with all projectors black" in t:
+        return "ตอนโปรเจคเตอร์ฉายสีดำ ภาพกล้องยังสว่างเกิน: ปิดไฟห้อง หรือลดค่าแสงของกล้อง"
+    if "did not see any projector" in t or "does not see the projectors" in t:
+        return "กล้องไม่เห็นแสงจากโปรเจคเตอร์เลย: โปรเจคเตอร์เปิดอยู่ไหม กล้องหันขึ้นโดมไหม ค่าแสงกล้องมืดเกินไหม"
+    if "stopped sending" in t or "no picture from the camera" in t:
+        return "กล้องหยุดส่งภาพ: เช็กสาย USB แบตกล้อง หรือกล้องดับเอง"
+    if "too slow" in t or "almost no pictures" in t or "could not measure" in t:
+        return "กล้องส่งภาพช้าเกินไป: เสียบ USB ตรงเข้าเครื่อง (ไม่ผ่าน hub) แล้วลองใหม่"
+    two = " (ถ้ากล้องอัดออกมา 2 ไฟล์ต่อครั้ง ชื่อต่างกันตรง _00_ กับ _10_ ให้ลองอีกไฟล์ด้วย)"
+    if "no projector picture" in t or "no projector is visible" in t:
+        return ("ในวิดีโอนี้อ่านลายจากโปรเจคเตอร์ไม่ได้: เลนส์ไม่ได้หันไปทางโดม หรือภาพมืด/สว่างเกินไปมาก "
+                "เช็กว่าเลนส์หันขึ้นโดมและค่าแสงเป็น Manual แล้วอัดใหม่" + two)
+    if "closing flash" in t:
+        return ("ไม่เจอแสงกะพริบปิดท้ายในวิดีโอ: หยุดอัดเร็วเกินไป หรือในไฟล์มีการฉายลายมากกว่า 1 รอบ "
+                "อัดใหม่: กดอัด > ฉายลาย 1 รอบจนจบ > หยุดอัด")
+    if "stuttered" in t:
+        return "ตอนฉายลาย โปรแกรมสะดุด ทำให้บางลายขึ้นสั้นเกินไป: ฉายลายใหม่และอัดวิดีโอใหม่"
+    if "start flashes were not found" in t:
+        return ("หาแสงกะพริบ 3 ครั้งตอนต้นในวิดีโอไม่เจอ: ต้องกดอัดที่กล้องก่อน แล้วค่อยกด 'ฉายลาย' "
+                "ห้องต้องมืด กล้องหันขึ้นโดม และล็อกค่าแสงกล้องเป็น Manual" + two)
+    if "does not belong to the last pattern show" in t or "no pattern show was run" in t:
+        return "ไฟล์วิดีโอนี้ไม่ตรงกับการฉายลายครั้งล่าสุด: ฉายลายใหม่และอัดวิดีโอใหม่ แล้วเลือกไฟล์นั้น"
+    if "video ends at pattern" in t or "no picture for pattern" in t or "gaps around" in t:
+        return "วิดีโอจบก่อนลายจะหมด หรือภาพขาดช่วง: อัดใหม่ตั้งแต่ก่อนกดฉายลาย จนลายจบ (มีแสงกะพริบปิดท้าย)"
+    if "too faint" in t:
+        return "แสงในวิดีโอมืดเกินไป: เพิ่ม ISO หรือเปิดหน้ากล้องนานขึ้น แล้วอัดใหม่"
+    if "runs" in t and ("late" in t or "early" in t):
+        return "เวลาของวิดีโอไม่ตรงกับตอนฉาย (กล้องทำภาพตกหล่น): อัดใหม่ที่ 30 ภาพ/วินาที"
+    if "video file could not be opened" in t:
+        return "เปิดไฟล์วิดีโอไม่ได้: ก๊อปไฟล์มาไว้ในเครื่องนี้ก่อน (เช่น C:\\DomePlayer) แล้วเลือกใหม่"
+    if "could not be opened" in t:
+        return "เปิดกล้องไม่ได้: เช็กสาย USB และโหมด webcam ของกล้อง"
+    return ""
+
+
 def main() -> int:
     if os.name == "nt":
         try:
@@ -154,19 +194,27 @@ def main() -> int:
     srow = ttk.Frame(frm)
     srow.grid(row=4, column=0, columnspan=2, sticky="w", padx=14, pady=(8, 0))
     stack_entry = ttk.Entry(srow, textvariable=stack_list, width=22)
+    auto = tk.BooleanVar(value=bool(cfg["stack"].get("auto")))
+    arow = ttk.Frame(frm)
+    arow.grid(row=5, column=0, columnspan=2, sticky="w", padx=14)
+    auto_box = ttk.Checkbutton(arow, variable=auto,
+                               text="เลือกจอให้เอง: ใช้ทุกจอยกเว้นจอหลักของ Windows (แนะนำ เลขจอเปลี่ยนก็ไม่เป็นไร)")
 
     def on_stack():
         on = stack.get()
         mon_box.configure(state="disabled" if on else "readonly")
-        stack_entry.configure(state="normal" if on else "disabled")
+        stack_entry.configure(state="normal" if on and not auto.get() else "disabled")
+        auto_box.configure(state="normal" if on else "disabled")
 
+    auto_box.configure(command=on_stack)
+    auto_box.pack(side="left", padx=(22, 0))
     ttk.Checkbutton(srow, text="ใช้หลายจอพร้อมกัน (โปรเจคเตอร์โดม)   จอ:", variable=stack,
                     command=on_stack).pack(side="left")
     stack_entry.pack(side="left", padx=6)
     on_stack()
 
     opts = ttk.Frame(frm)
-    opts.grid(row=5, column=0, columnspan=2, sticky="w", **pad)
+    opts.grid(row=6, column=0, columnspan=2, sticky="w", **pad)
     ttk.Checkbutton(opts, text="เต็มจอ", variable=fullscreen).pack(side="left", padx=(0, 16))
     ttk.Checkbutton(opts, text="เปิดเสียง", variable=audio).pack(side="left", padx=(0, 16))
     ttk.Checkbutton(opts, text="โชว์หน้าสถิติ (F1)", variable=stats).pack(side="left")
@@ -174,7 +222,7 @@ def main() -> int:
     from . import watchdog
     autostart = tk.BooleanVar(value=watchdog.autostart_enabled())
     ttk.Checkbutton(frm, text="เปิดเล่นเองทุกครั้งที่เปิดเครื่อง (และเปิดใหม่เองถ้าโปรแกรมค้าง/ปิดไปเอง)",
-                    variable=autostart).grid(row=8, column=0, columnspan=2, sticky="w", padx=14, pady=(0, 4))
+                    variable=autostart).grid(row=9, column=0, columnspan=2, sticky="w", padx=14, pady=(0, 4))
 
     def save_choices(need_file: bool) -> bool:
         """Write what is chosen in this window into config.json. False = not saved (message shown)."""
@@ -199,6 +247,7 @@ def main() -> int:
             messagebox.showwarning("DomePlayer", "เลขจอต้องเป็นตัวเลขคั่นด้วยจุลภาค เช่น 3, 6, 2, 4, 5, 1")
             return False
         r.setdefault("stack", {})["enabled"] = bool(stack.get())
+        r["stack"]["auto"] = bool(auto.get())
         if mon_list:
             r["stack"]["monitors"] = mon_list
         try:
@@ -227,6 +276,12 @@ def main() -> int:
             c = load_config()
             want = list(c["stack"]["monitors"]) if c["stack"]["enabled"] else [c["display"]["monitor"]]
             have = [n for n, _ in _monitors()]
+            if c["stack"]["enabled"] and c["stack"].get("auto"):
+                want = []          # the player takes whatever displays are there
+                if len(have) == 1 and c["display"]["fullscreen"] and not messagebox.askyesno(
+                        "DomePlayer", "เครื่องนี้เห็นจอเดียว (ไม่เจอโปรเจคเตอร์)\n"
+                                      "ถ้าเล่นตอนนี้ ภาพจะขึ้นเต็มจอนี้ (กด Esc เพื่อปิด)\n\nเล่นเลยไหม?"):
+                    return
             missing = [n for n in want if n not in have]
         except Exception:  # noqa: BLE001 - only a courtesy question, never block Play
             c, have, missing = None, [], []
@@ -246,17 +301,235 @@ def main() -> int:
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("DomePlayer", f"เปิดตัวเล่นไม่ได้:\n{e}")
             return
-        root.destroy()
+        open_panel()
 
-    ttk.Button(frm, text="▶  เล่น", command=play).grid(row=6, column=0, columnspan=2, sticky="we", padx=14, pady=(10, 4), ipady=8)
+    def open_panel():
+        """Control panel: what the player is doing, in Thai, and buttons that press its keys.
+        The player's own texts appear on the dome (first projector), which is hard to read."""
+        from . import remote
+        win = tk.Toplevel(root)
+        win.title(f"DomePlayer {__version__} - แผงควบคุม")
+        win.resizable(False, False)
+        root.withdraw()
+        head = tk.StringVar(value="กำลังเปิดตัวเล่น…")
+        detail = tk.StringVar(value="")
+        ttk.Label(win, textvariable=head, font=big).grid(row=0, column=0, sticky="w", padx=14, pady=(12, 2))
+        ttk.Label(win, textvariable=detail, wraplength=700, justify="left").grid(row=1, column=0, sticky="w", padx=14)
+        pic = ttk.Label(win)
+        pic.grid(row=2, column=0, padx=14, pady=4)
+        state = {"shot": 0.0, "img": None, "t0": time.time(), "seen": False}
+
+        def key(name):
+            return lambda: remote.send("key " + name)
+
+        def box(title, row):
+            f = ttk.LabelFrame(win, text=title, padding=6)
+            f.grid(row=row, column=0, sticky="we", padx=14, pady=4)
+            return f
+
+        def buttons(frame, items):
+            for i, (label, command) in enumerate(items):
+                ttk.Button(frame, text=label, command=command).grid(row=0, column=i, padx=3, ipady=2)
+
+        buttons(box("ดูภาพ", 3), [
+            ("ตาราง / ขาว / วิดีโอ  (T)", key("T")), ("หยุด / เล่นต่อ", key("SPACE")),
+            ("เริ่มวิดีโอใหม่", key("HOME")), ("หน้าสถิติ (F1)", key("F1")),
+            ("เปิด / ปิดผล calibrate (U)", key("U"))])
+
+        def calibrate():
+            if messagebox.askyesno(
+                    "DomePlayer", "เริ่ม calibrate ด้วยกล้อง?\n\n"
+                    "- ปิดไฟห้องแล้ว\n- กล้องอยู่กลางห้อง หันขึ้นโดม เห็นขอบโดมครบทั้งวง\n"
+                    "- ใช้เวลา 2-3 นาที ห้ามขยับกล้อง ห้ามเดินผ่านหน้ากล้อง\n"
+                    "- ช่อง 'เลนส์กล้อง' ด้านล่างต้องตรงกับกล้อง (R50 = เลนส์ปกติ)\n\n"
+                    "(ค่าเดิมจะถูกเก็บสำรองไว้ ย้อนกลับได้)", parent=win):
+                remote.send("calibrate")
+
+        def show_patterns():
+            if messagebox.askyesno(
+                    "DomePlayer", "ฉายลายให้กล้องอัดวิดีโอ?\n\n"
+                    "ทำตามลำดับ:\n1. วางกล้องกลางห้อง เลนส์หันขึ้นโดม ปิดไฟห้อง\n"
+                    "2. ตั้งกล้องเป็นโหมดวิดีโอ ล็อกค่าแสงแบบ Manual\n"
+                    "3. กดอัดวิดีโอที่กล้อง แล้วออกห่างจากกล้อง\n4. กด Yes ที่นี่\n\n"
+                    "ลายจะฉาย 3 นาทีกว่า (เริ่มและจบด้วยแสงขาวกะพริบ) จบแล้วค่อยหยุดอัด", parent=win):
+                remote.send("show")
+
+        def pick_video():
+            f = filedialog.askopenfilename(
+                parent=win, title="เลือกไฟล์วิดีโอที่กล้องอัดไว้",
+                filetypes=[("Video", "*.mp4 *.mov *.insv *.lrv *.mkv *.avi *.m4v *.360"), ("All files", "*.*")])
+            if f:
+                remote.send("video " + f)
+
+        vf = box("calibrate ด้วยกล้องที่อัดวิดีโอ (Insta360 / กล้อง 360 / มือถือ) - ใช้เมื่อกล้อง USB เห็นโดมไม่ครบ", 7)
+        buttons(vf, [("1) ฉายลายให้กล้องอัด", show_patterns), ("2) เลือกไฟล์วิดีโอ…", pick_video),
+                     ("ดูภาพจากวิดีโอ (ไว้ปรับวงกลม)", lambda: remote.send("still"))])
+        lens = tk.StringVar(value="")
+        ttk.Label(vf, text="   เลนส์กล้อง:").grid(row=0, column=3)
+        lens_box = ttk.Combobox(vf, textvariable=lens, state="readonly", width=24,
+                                values=["ฟิชอาย / กล้อง 360", "เลนส์ปกติ (R50 10 mm)"])
+        lens_box.grid(row=0, column=4, padx=4)
+        lens_box.bind("<<ComboboxSelected>>", lambda _e: remote.send("lens 0" if lens_box.current() == 0 else "lens 10"))
+        state["lens_box"] = lens_box
+
+        buttons(box("calibrate ด้วยกล้อง USB (ภาพสด)", 4), [
+            ("เปิด / ปิดภาพกล้อง (C)", key("C")), ("กล้องตัวถัดไป", key("RIGHT_BRACKET")),
+            ("กล้องตัวก่อนหน้า", key("LEFT_BRACKET")), ("▶ เริ่ม calibrate", calibrate),
+            ("ยกเลิก calibrate", lambda: remote.send("cancel"))])
+
+        big_step = tk.BooleanVar(value=False)
+
+        def circle(name):
+            return lambda: remote.send("key " + name + (" shift" if big_step.get() else ""))
+
+        cf = box("ขอบวงกลมโดม (เปิดภาพกล้อง หรือ ภาพจากวิดีโอ ก่อน แล้วปรับให้วงกลมทับขอบโดมพอดี)", 5)
+        buttons(cf, [("◀", circle("LEFT")), ("▲", circle("UP")), ("▼", circle("DOWN")), ("▶", circle("RIGHT")),
+                     ("ใหญ่ขึ้น", circle("EQUAL")), ("เล็กลง", circle("MINUS")),
+                     ("หมุน FRONT ⟲", circle("COMMA")), ("หมุน FRONT ⟳", circle("PERIOD")),
+                     ("หาเอง", key("A")), ("บันทึกวงกลม", lambda: remote.send("key S ctrl"))])
+        ttk.Checkbutton(cf, text="ทีละ 10", variable=big_step).grid(row=0, column=10, padx=6)
+
+        def stop_show():
+            if messagebox.askyesno("DomePlayer", "ปิดการฉายตอนนี้เลยไหม?", parent=win):
+                head.set("กำลังปิดตัวเล่น…")
+                win.update()
+                watchdog.request_stop(limit_s=8)
+
+        def back():
+            win.destroy()
+            root.deiconify()
+
+        end = ttk.Frame(win)
+        end.grid(row=8, column=0, sticky="we", padx=14, pady=(6, 12))
+        ttk.Button(end, text="■ ปิดการฉาย", command=stop_show).pack(side="left", ipady=3, ipadx=10)
+        ttk.Button(end, text="กลับหน้าตั้งค่า (การฉายไม่หยุด)", command=back).pack(side="right", ipady=3)
+        win.protocol("WM_DELETE_WINDOW", back)
+
+        def describe(st: dict) -> tuple[str, str]:
+            lines = []
+            if st["state"] == "capture":
+                h = (f"กำลังถ่ายลาย {st.get('progress', 0) * 100:.0f}%   เหลือประมาณ {st.get('eta', 0)} วินาที   "
+                     "ห้ามขยับกล้อง ห้ามเดินผ่าน")
+                if st.get("monitor"):
+                    lines.append(f"ตอนนี้ถ่ายจอ {st['monitor']}")
+                if st.get("skipped"):
+                    lines.append("กล้องไม่เห็นจอ " + ", ".join(map(str, st["skipped"])) + " (ข้ามไป จอนั้นจะดำ)")
+            elif st["state"] == "show":
+                h = (f"กำลังฉายลายให้กล้องอัด {st.get('progress', 0) * 100:.0f}%   เหลือประมาณ {st.get('eta', 0)} วินาที   "
+                     "อย่าหยุดอัดจนกว่าจะจบ")
+            elif st["state"] == "read":
+                h = f"กำลังอ่านไฟล์วิดีโอ {st.get('progress', 0) * 100:.0f}%  (อาจนานหลายนาที)"
+            elif st["state"] == "solve":
+                h = f"กำลังคำนวณ {st.get('progress', 0) * 100:.0f}%"
+            elif st.get("preview"):
+                h = "หน้าภาพกล้อง (ภาพเดียวกับที่ขึ้นบนโดม)"
+            else:
+                h = ["กำลังเล่นวิดีโอ", "ตารางทดสอบ", "สีขาวทุกเครื่อง"][int(st.get("test", 0)) % 3]
+                if st.get("paused") and not st.get("test"):
+                    h += "  (หยุดชั่วคราว)"
+            outs = ", ".join(map(str, st.get("outputs", [])))
+            cal = st.get("calibrated") or []
+            lines.append(f"จอที่ใช้: {outs}      วาด {st.get('fps', 0):.0f} ภาพ/วินาที  วิดีโอ {st.get('video_fps', 0):.0f} ภาพ/วินาที")
+            if cal:
+                lines.append("ผล calibrate: มีของจอ " + ", ".join(map(str, cal))
+                             + ("  (ใช้อยู่)" if st.get("cal_use") else "  (ปิดไว้ กด U เพื่อเปิด)"))
+            else:
+                lines.append("ผล calibrate: ยังไม่มี (ภาพจะยังไม่เข้ารูปโดม)")
+            cam = st.get("camera")
+            if cam and cam.get("index") == -2:
+                lines.append(f"ภาพนิ่งจากการ calibrate ครั้งล่าสุด ({cam['size'][0]}x{cam['size'][1]}): "
+                             "ใช้ปรับวงกลมโดม แล้วกด 'บันทึกวงกลม'")
+                if st.get("circle_dirty"):
+                    lines.append("วงกลมโดมถูกแก้แล้วแต่ยังไม่ได้บันทึก กด 'บันทึกวงกลม'")
+            elif cam:
+                t = f"กล้อง {cam['index']}: {cam['size'][0]}x{cam['size'][1]}  {cam['fps']} ภาพ/วินาที  สว่างเกิน {cam['over']}%"
+                if cam.get("black"):
+                    t += "   ← ภาพดำสนิท น่าจะไม่ใช่กล้องตัวจริง กด 'กล้องตัวถัดไป'"
+                elif cam["over"] > 1:
+                    t += "   ← สว่างเกิน ลด ISO ที่กล้อง"
+                elif 0 < cam["fps"] < 15:
+                    t += "   ← ช้า (ควรได้ราว 30)"
+                lines.append(t)
+                if st.get("circle_dirty"):
+                    lines.append("วงกลมโดมถูกแก้แล้วแต่ยังไม่ได้บันทึก กด 'บันทึกวงกลม'")
+            if st.get("show_done") and not (st.get("result") or {}).get("at", 0) > st["show_done"]:
+                lines.append("ฉายลายจบแล้วเมื่อ " + time.strftime("%H:%M", time.localtime(st["show_done"]))
+                             + ": หยุดอัดที่กล้อง ก๊อปไฟล์วิดีโอมาไว้ในเครื่องนี้ แล้วกด '2) เลือกไฟล์วิดีโอ…'")
+            box_ = state.get("lens_box")
+            if box_ is not None and st.get("lens_mm") is not None:      # show what the player uses
+                want = 0 if float(st["lens_mm"]) <= 0 else 1
+                if box_.current() != want:
+                    box_.current(want)
+            res = st.get("result")
+            if res:
+                when = time.strftime("%H:%M", time.localtime(res.get("at", 0)))
+                if res.get("ok"):
+                    t = (f"calibrate เสร็จเมื่อ {when}: ได้ {len(res.get('outputs', []))} จอ  "
+                         f"แสงต่างกัน {res.get('before')}% → {res.get('after')}%")
+                    if res.get("skipped"):
+                        t += ("\n⚠ กล้องไม่เห็นจอ " + ", ".join(map(str, res["skipped"]))
+                              + " เลย จอนั้นจะดำ (ถ้าเป็นโปรเจคเตอร์โดม ให้เปิดเครื่องแล้ว calibrate ใหม่)")
+                    for w in res.get("warnings", []):
+                        if "edge of the camera picture" in w:
+                            t += "\n⚠ วงกลมโดมชนขอบภาพกล้อง: กล้องเห็นโดมไม่ครบ ส่วนที่ไม่เห็นจะดำ"
+                        elif "only part of monitor" in w:
+                            t += "\n⚠ กล้องเห็นภาพของบางจอไม่ครบ: " + w.split("monitor", 1)[-1].strip()
+                    lines.append(t)
+                else:
+                    lines.append(f"calibrate ไม่สำเร็จเมื่อ {when} (ค่าเดิมไม่ถูกเปลี่ยน): "
+                                 + (thai_reason(res.get("text", "")) or res.get("text", "")))
+            if st.get("toast"):
+                lines.append("ข้อความบนโดม: " + st["toast"].replace("\n", "  "))
+            for m in st.get("messages", []):
+                lines.append("⚠ " + m.replace("\n", "  "))
+            return h, "\n".join(lines)
+
+        def tick():
+            if not win.winfo_exists():
+                return
+            st = remote.read_status()
+            if st is None:
+                if watchdog.is_running():
+                    head.set("กำลังเปิดตัวเล่น…" if not state["seen"] else "ตัวเล่นไม่ตอบ (ถ้าเกิน 30 วินาที จะถูกเปิดใหม่เอง)")
+                elif state["seen"] or time.time() - state["t0"] > 15:
+                    head.set("ตัวเล่นปิดแล้ว")
+                    detail.set("กด 'กลับหน้าตั้งค่า' แล้วกด เล่น เพื่อเริ่มใหม่\nถ้าปิดไปเองโดยไม่ได้สั่ง ดู logs\\domeplayer.log")
+                pic.configure(image="")
+            else:
+                state["seen"] = True
+                try:
+                    h, d = describe(st)
+                    head.set(h)
+                    detail.set(d)
+                except Exception as e:  # noqa: BLE001 - a new field must never break the panel
+                    detail.set(str(e))
+                if st.get("preview"):
+                    try:
+                        mt = remote.PREVIEW.stat().st_mtime
+                        if mt != state["shot"]:
+                            img = tk.PhotoImage(file=str(remote.PREVIEW))
+                            if img.height() > 230:        # the panel must fit a 900-line screen
+                                img = img.subsample(2)
+                            state["img"] = img
+                            state["shot"] = mt
+                            pic.configure(image=state["img"])
+                    except (OSError, tk.TclError):
+                        pass      # being written right now: next time
+                else:
+                    pic.configure(image="")
+            win.after(400, tick)
+
+        tick()
+
+    ttk.Button(frm, text="▶  เล่น", command=play).grid(row=7, column=0, columnspan=2, sticky="we", padx=14, pady=(10, 4), ipady=8)
     ttk.Label(frm, text="ระหว่างเล่น:  F1 สถิติ  |  T ตารางทดสอบ  |  1-9 ดูทีละจอ, 0 ทุกจอ  |  E ปรับมุม  |  Esc ปิด",
-              foreground="#555").grid(row=7, column=0, columnspan=2, **pad)
+              foreground="#555").grid(row=8, column=0, columnspan=2, **pad)
 
     # ---- tools: readiness check, calibration rollback, problem report -------------------
     tools = ttk.Frame(frm)
-    tools.grid(row=9, column=0, columnspan=2, sticky="we", padx=14, pady=(6, 10))
+    tools.grid(row=10, column=0, columnspan=2, sticky="we", padx=14, pady=(6, 10))
     status = tk.StringVar(value="")
-    ttk.Label(frm, textvariable=status, foreground="#a60").grid(row=10, column=0, columnspan=2, sticky="w", padx=14)
+    ttk.Label(frm, textvariable=status, foreground="#a60").grid(row=11, column=0, columnspan=2, sticky="w", padx=14)
 
     def show_text(title: str, text: str) -> None:
         win = tk.Toplevel(root)
@@ -377,7 +650,56 @@ def main() -> int:
                 pass
         messagebox.showinfo("DomePlayer", f"สร้างไฟล์แล้ว:\n{z}\n\nส่งไฟล์นี้ให้ช่างได้เลย")
 
+    def fix_ydome():
+        """Put good copies of YDome's two settings files back when they are blank (see ydome.py)."""
+        from . import ydome
+        home = ydome.DEFAULT_HOME
+        st = ydome.look(home)
+        if not st["found"]:
+            d = filedialog.askdirectory(parent=root, title="เลือกโฟลเดอร์ YDome (โฟลเดอร์ที่มี dome.proj และโฟลเดอร์ bin)")
+            if not d:
+                return
+            home = Path(d)
+            st = ydome.look(home)
+            if not st["found"]:
+                messagebox.showerror("DomePlayer", f"ไม่พบ YDome.exe ในโฟลเดอร์ย่อยของ\n{home}")
+                return
+        lines = ["dome.proj: " + ("ว่างเปล่า (เสีย)" if st["project_blank"] else "มีข้อมูลอยู่")]
+        lines += [f"{d.name}\\config.xml: " + ("ว่างเปล่า (เสีย)" if b else "มีข้อมูลอยู่")
+                  for d, b in st["config_blank"].items()]
+        broken = st["project_blank"] or any(st["config_blank"].values())
+        if broken:
+            ask = ("พบไฟล์ตั้งค่าของ YDome ว่างเปล่า (สาเหตุที่ YDome เปิดไม่ขึ้น):\n\n" + "\n".join(lines)
+                   + "\n\nใส่ไฟล์ที่กู้ไว้แทนไฟล์ที่ว่างเปล่าไหม?\n"
+                   "- ไฟล์เดิมจะถูกเก็บไว้ในโฟลเดอร์ files-before-repair-… ข้างๆ\n"
+                   "- ไฟล์ใหม่จะถูกตั้งเป็น read-only เพื่อกันพังซ้ำแบบเดิม")
+        else:
+            ask = ("ไฟล์ตั้งค่าของ YDome ไม่ได้ว่างเปล่า:\n\n" + "\n".join(lines)
+                   + "\n\nเขียนทับด้วยค่าที่กู้ไว้ (ค่าปี 2021) ไหม?\nไฟล์เดิมจะถูกเก็บไว้ในโฟลเดอร์ files-before-repair-…")
+        if not messagebox.askyesno("DomePlayer - ซ่อม YDome", ask, default="yes" if broken else "no"):
+            return
+        try:
+            done = ydome.repair(home, force=not broken)
+        except (OSError, RuntimeError) as e:
+            messagebox.showerror("DomePlayer", f"ซ่อมไม่สำเร็จ:\n{e}\n\nถ้า YDome เปิดค้างอยู่ ให้ปิดก่อนแล้วลองใหม่")
+            return
+        both = ""
+        try:
+            if watchdog.autostart_enabled():
+                both = ("\n\n⚠ ตอนนี้ DomePlayer ตั้งให้เปิดเองตอนเปิดเครื่องอยู่ และ YDome ก็มี shortcut เปิดเองของมัน\n"
+                        "ถ้าจะใช้ YDome: เอาติ๊ก 'เปิดเล่นเองทุกครั้งที่เปิดเครื่อง' ของ DomePlayer ออกแล้วกด เล่น 1 ครั้ง\n"
+                        "ถ้าจะใช้ DomePlayer: ลบ shortcut ของ YDome ออกจากโฟลเดอร์ Startup ของ Windows")
+        except OSError:
+            pass
+        messagebox.showinfo(
+            "DomePlayer - ซ่อม YDome",
+            "ใส่ไฟล์แล้ว:\n" + "\n".join(done) + both + "\n\n"
+            "ต่อไป: ปิด DomePlayer (ถ้ากำลังฉายอยู่) แล้วเปิด YDome จาก shortcut เดิมบน Desktop\n"
+            "เปิดได้ทีละโปรแกรม อย่าเปิด DomePlayer กับ YDome พร้อมกัน\n\n"
+            "ถ้า YDome เปิดขึ้นแต่ภาพจากกลางโดมถึงขอบดูยืดหรือหดผิดปกติ: ดูไฟล์ อ่านก่อน.txt ในโฟลเดอร์ ydome-repair")
+
     tool_buttons = [
+        ttk.Button(tools, text="แผงควบคุม", command=open_panel),
         ttk.Button(tools, text="ตรวจความพร้อม", command=check),
         ttk.Button(tools, text="ย้อนค่า calibrate…", command=rollback),
         ttk.Button(tools, text="เก็บข้อมูลส่งช่าง (zip)", command=report),
@@ -385,6 +707,13 @@ def main() -> int:
     for i, b in enumerate(tool_buttons):
         b.grid(row=0, column=i, sticky="we", padx=(0 if i == 0 else 6, 0), ipady=3)
         tools.columnconfigure(i, weight=1)
+    try:
+        from . import ydome
+        if ydome.kit_ready():        # only where the repair files were delivered with the program
+            ttk.Button(tools, text="ซ่อม YDome (โปรแกรมเดิมของห้อง)…", command=fix_ydome).grid(
+                row=1, column=0, columnspan=len(tool_buttons), sticky="we", pady=(6, 0), ipady=2)
+    except Exception:  # noqa: BLE001 - never a reason for the start window not to open
+        pass
 
     root.bind("<Return>", lambda _e: play())
     root.mainloop()

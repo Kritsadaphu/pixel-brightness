@@ -88,6 +88,79 @@ def adapters() -> dict[int, tuple[str, str]]:
     return out
 
 
+def ports() -> dict[int, str]:
+    """Windows: display number -> name of the graphics-card socket that display hangs on.
+    Windows hands out new display numbers when a projector is switched on late or a cable is
+    re-plugged; the socket name stays, so a saved calibration can find its projector again.
+    Empty when it cannot be read (then numbers are used as before)."""
+    import ctypes
+    import os
+    from ctypes import wintypes
+    if os.name != "nt":
+        return {}
+
+    class DISPLAY_DEVICEW(ctypes.Structure):
+        _fields_ = [("cb", wintypes.DWORD), ("DeviceName", wintypes.WCHAR * 32),
+                    ("DeviceString", wintypes.WCHAR * 128), ("StateFlags", wintypes.DWORD),
+                    ("DeviceID", wintypes.WCHAR * 128), ("DeviceKey", wintypes.WCHAR * 128)]
+
+    out: dict[int, str] = {}
+    try:
+        user32 = ctypes.windll.user32
+        i = 0
+        while i < 64:
+            dd = DISPLAY_DEVICEW()
+            dd.cb = ctypes.sizeof(dd)
+            if not user32.EnumDisplayDevicesW(None, i, ctypes.byref(dd), 0):
+                break
+            i += 1
+            num = re.search(r"DISPLAY(\d+)", dd.DeviceName)
+            if not num or not dd.StateFlags & 1:          # 1 = attached to the desktop
+                continue
+            mon = DISPLAY_DEVICEW()
+            mon.cb = ctypes.sizeof(mon)
+            # 1 = EDD_GET_DEVICE_INTERFACE_NAME: \?\DISPLAY#<model>#<card socket>&UID<n>#{...}
+            if not user32.EnumDisplayDevicesW(dd.DeviceName, 0, ctypes.byref(mon), 1):
+                continue
+            parts = mon.DeviceID.split("#")
+            if len(parts) >= 3 and "UID" in parts[2].upper():
+                out[int(num.group(1))] = parts[2].lower()
+    except Exception:  # noqa: BLE001 - only a help, never a reason to fail
+        return {}
+    if len(set(out.values())) != len(out):       # not unique: useless as a key
+        return {}
+    return out
+
+
+def wanted(cfg: dict, mons: list[MonitorInfo]) -> list[int]:
+    """The monitor numbers the show uses: one monitor, the list from the settings, or
+    (stack.auto) every display except the Windows main display, left to right."""
+    st = cfg["stack"]
+    if not st["enabled"]:
+        return [cfg["display"]["monitor"]]
+    if st.get("auto"):
+        nums = [m.number for m in sorted(mons, key=lambda m: (m.x, m.y)) if not m.primary]
+        if nums:
+            return nums
+        return [m.number for m in mons if m.primary][:1] or [cfg["display"]["monitor"]]
+    return list(st["monitors"])
+
+
+def remap_by_port(saved: dict, now: dict[int, str]) -> dict[int, int | None]:
+    """saved: {monitor number at calibration time: socket name}. now: ports() today.
+    Returns {old number: number today}; None = that socket has no display now.
+    Empty dict = nothing to do (no socket names, or nothing moved)."""
+    if not saved or not now:
+        return {}
+    by_port = {v: k for k, v in now.items()}
+    out: dict[int, int | None] = {}
+    for old, port in saved.items():
+        out[int(old)] = by_port.get(str(port).lower())
+    if all(k == v for k, v in out.items()):
+        return {}
+    return out
+
+
 def find_monitor(number: int) -> tuple[MonitorInfo | None, list[MonitorInfo]]:
     mons = list_monitors()
     for m in mons:

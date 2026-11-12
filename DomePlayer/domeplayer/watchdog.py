@@ -177,8 +177,20 @@ def _sleep(seconds: float) -> bool:
     return stop_requested()
 
 
-def wait_for_monitors(want: list[int], limit_s: float = MONITOR_WAIT_S) -> bool:
-    """Wait until all wanted monitors are present (or limit_s is over). True = asked to stop."""
+def _displays_at_calibration(cfg: dict) -> int:
+    """How many displays the show used when it was last calibrated (0 = not known)."""
+    try:
+        import json
+        from .config import resolve_path
+        info = json.loads((resolve_path(cfg["calibration"]["folder"]) / "calibration.json").read_text(encoding="utf-8"))
+        return len(info.get("monitors") or [])
+    except (OSError, ValueError):
+        return 0
+
+
+def wait_for_monitors(want: list[int], limit_s: float = MONITOR_WAIT_S, count: int = 0) -> bool:
+    """Wait until all wanted monitors are present, and at least 'count' displays in all
+    (or limit_s is over). True = asked to stop."""
     t0 = time.time()
     last = None
     while True:
@@ -188,8 +200,10 @@ def wait_for_monitors(want: list[int], limit_s: float = MONITOR_WAIT_S) -> bool:
             log.warning("could not list monitors: %s", e)
             have = []
         missing = [n for n in want if n not in have]
+        if not missing and len(have) < count:
+            missing = [f"{count - len(have)} more display(s)"]
         if not missing:
-            log.info("all monitors present: %s", want)
+            log.info("all monitors present: %s", have)
             return False
         if missing != last:
             log.info("waiting for monitors %s (present: %s)", missing, have)
@@ -237,12 +251,15 @@ def _watch(autostart: bool) -> int:
         tell(str(e))
         return 2
     want = list(cfg["stack"]["monitors"]) if cfg["stack"]["enabled"] else [cfg["display"]["monitor"]]
+    count = 0
+    if cfg["stack"]["enabled"] and cfg["stack"].get("auto"):
+        want, count = [], _displays_at_calibration(cfg) + 1      # + the operator's screen
     if autostart:
         if _sleep(8):          # let Windows finish logging in
             return 0
         # only at power-on: the projectors are still warming up. A start by hand begins at once
         # (the player uses the monitors that are there and says which are missing).
-        if cfg["display"]["fullscreen"] and wait_for_monitors(want):
+        if cfg["display"]["fullscreen"] and wait_for_monitors(want, count=count):
             log.info("asked to stop while waiting for the monitors")
             return 0
 
@@ -310,10 +327,11 @@ def _watch(autostart: bool) -> int:
             log.warning("monitors changed while playing - waiting for them, then restarting")
             # a projector that stays off must not hold up the others for long; when it comes
             # back later the player notices and we set the outputs up again
-            if wait_for_monitors(want, MONITOR_BACK_S):
+            if wait_for_monitors(want, MONITOR_BACK_S, count=count):
                 return 0
-            if ran >= 15:               # a real monitor change is not a crash: no back-off
-                if _sleep(3):
+            if ran >= 15 or not want:   # a real monitor change is not a crash: no back-off
+                # (automatic list: the player takes what is there, so let the displays settle first)
+                if _sleep(3 if want else MONITOR_BACK_S):
                     return 0
                 continue
         else:

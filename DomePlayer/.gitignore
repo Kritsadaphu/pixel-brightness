@@ -15,3 +15,11 @@ logs/*.jpg
 logs/*.json
 logs/*.request
 logs/*.log.*
+
+# control panel work files
+logs/*.png
+logs/*.tmp
+logs/*.taken
+logs/command.txt
+# the client's own YDome settings, delivered with the offline folder only
+ydome-repair/

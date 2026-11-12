@@ -79,6 +79,9 @@ DEFAULTS: dict = {
         # so all projectors always show the same video frame). false = only display.monitor.
         "enabled": False,
         "monitors": [1, 2, 3, 4, 5, 6],
+        # true = use every display except the Windows main display (the operator's screen),
+        # whatever numbers Windows gives them today. "monitors" is then ignored.
+        "auto": False,
     },
     # Per-projector alignment, written by the player's edit mode (E key, then Ctrl+S).
     # "3": {"corners": [[x, y] top-left, top-right, bottom-right, bottom-left], "brightness": 1.0}
@@ -98,6 +101,10 @@ DEFAULTS: dict = {
         "folder": "calibration", # where results are saved (next to config.json)
         "simulate": False,       # test without a camera (pretend projectors)
         "simulate_delay_ms": 0,  # (test only) pretend camera delay
+        # calibration from a recorded video (360 camera, phone): seconds each pattern stays on
+        # the projectors, and the biggest picture size worked on (bigger videos are made smaller)
+        "show_hold_ms": 700,
+        "video_max_px": 2160,
         # "dome"  = projectors each cover part of the dome (fanned out, overlapping); the
         #           camera looks up at the dome and dome_circle marks the dome's edge in its picture
         # "stack" = all projectors show the whole picture on the same area, lined up on monitor 1
@@ -193,7 +200,7 @@ def load_config(path: Path | None = None) -> dict:
     for sec, key in (("video", "loop"), ("video", "audio"), ("display", "fullscreen"), ("display", "vsync"),
                      ("display", "always_on_top"), ("display", "hide_cursor"), ("preview", "flip_x"),
                      ("preview", "flip_y"), ("render", "mipmaps"), ("stats", "show_on_start"),
-                     ("stack", "enabled"), ("calibration", "use"), ("calibration", "simulate"),
+                     ("stack", "enabled"), ("stack", "auto"), ("calibration", "use"), ("calibration", "simulate"),
                      ("calibration", "measure_delay"), ("mask", "enabled")):
         _check(isinstance(cfg[sec][key], bool), f"{sec}.{key} must be true or false (no quotes)")
 
@@ -203,7 +210,8 @@ def load_config(path: Path | None = None) -> dict:
     for sec, key in (("video", "volume"), ("display", "refresh_rate"), ("preview", "zoom"),
                      ("preview", "rotate_deg"), ("calibration", "camera"), ("calibration", "camera_width"),
                      ("calibration", "camera_height"), ("calibration", "settle_ms"), ("calibration", "average"),
-                     ("calibration", "skip_bits"), ("calibration", "simulate_delay_ms")):
+                     ("calibration", "skip_bits"), ("calibration", "simulate_delay_ms"),
+                     ("calibration", "show_hold_ms"), ("calibration", "video_max_px")):
         _check(_num(cfg[sec][key]), f"{sec}.{key} must be a number (no quotes)")
     _check(isinstance(cfg["preview"]["background"], list) and len(cfg["preview"]["background"]) == 3
            and all(_num(x) for x in cfg["preview"]["background"]),

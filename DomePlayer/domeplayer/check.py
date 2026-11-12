@@ -133,9 +133,27 @@ def check_monitors(rep: Report, cfg: dict) -> list:
     by = {m.number: m for m in mons}
     listing = "\n".join(f"จอ {m.number}: {m.width}x{m.height} @ {m.refresh} Hz ที่ตำแหน่ง ({m.x},{m.y})"
                         f"{'  จอหลัก' if m.primary else ''}  {m.name}" for m in sorted(mons, key=lambda m: m.number))
-    want = list(cfg["stack"]["monitors"]) if cfg["stack"]["enabled"] else [cfg["display"]["monitor"]]
+    from .monitors import wanted
+    auto = bool(cfg["stack"]["enabled"] and cfg["stack"].get("auto"))
+    want = wanted(cfg, mons)
     missing = [n for n in want if n not in by]
-    if missing:
+    primary = next((m for m in mons if m.primary), None)
+    if auto and (primary is None or primary.number in want):
+        rep.add(FAIL, "เลือกจอให้เอง: เครื่องนี้มีจอเดียว ไม่มีโปรเจคเตอร์ต่ออยู่",
+                listing + "\nแก้: เปิดโปรเจคเตอร์ เช็กสาย แล้วตั้ง Windows เป็น Extend (กด Win+P)")
+    elif auto:
+        sizes = [(m.width, m.height) for m in mons if not m.primary]
+        common = max(set(sizes), key=sizes.count)
+        odd = [m.number for m in mons if not m.primary and (m.width, m.height) != common]
+        if (primary.width, primary.height) == common and len(odd) == 1 and len(mons) > 2:
+            rep.add(WARN, f"จอหลักของ Windows (จอ {primary.number}) ความละเอียดเหมือนโปรเจคเตอร์ แต่จอ {odd[0]} ไม่เหมือน",
+                    listing + f"\nดูเหมือนจอ {odd[0]} คือจอคนคุม และโปรเจคเตอร์ถูกตั้งเป็นจอหลัก"
+                    f"\nแก้: Display settings > คลิกจอ {odd[0]} > ติ๊ก Make this my main display แล้วกดตรวจใหม่"
+                    "\n(เลือกจอให้เอง = ใช้ทุกจอยกเว้นจอหลัก จอหลักจึงต้องเป็นจอคนคุม)")
+        else:
+            rep.add(OK, f"เลือกจอให้เอง: ใช้ {len(want)} จอ ({', '.join(map(str, want))}) "
+                        f"จอ {primary.number} เป็นจอคนคุม", listing)
+    elif missing:
         rep.add(FAIL, f"หาจอ {', '.join(map(str, missing))} ไม่เจอ (ตั้งไว้ว่าใช้จอ {', '.join(map(str, want))})",
                 listing + "\nแก้: เปิดโปรเจคเตอร์ให้ครบก่อนแล้วรีสตาร์ทเครื่อง, เช็กสาย HDMI, "
                 "กด 'โชว์เลขจอ' ดูว่าเลขจอเปลี่ยนไปหรือไม่")
@@ -146,8 +164,16 @@ def check_monitors(rep: Report, cfg: dict) -> list:
                 "ถ้าเป็นห้องโดม: ติ๊ก 'ใช้หลายจอพร้อมกัน' ในหน้าต่างเริ่มต้น แล้วกดตรวจใหม่")
     if not cfg["display"]["fullscreen"]:
         rep.add(WARN, "ไม่ได้ตั้งเต็มจอ ภาพจะอยู่ในหน้าต่างเล็ก", "แก้: ติ๊ก 'เต็มจอ' ในหน้าต่างเริ่มต้น")
+    if (cfg["stack"]["enabled"] and not auto and primary is not None and primary.number in want
+            and len(want) > 1):
+        others = {(by[n].width, by[n].height) for n in want if n in by and n != primary.number}
+        odd = (primary.width, primary.height) not in others
+        rep.add(WARN, f"จอ {primary.number} เป็นจอหลักของ Windows แต่อยู่ในรายการจอที่ใช้ฉาย"
+                      + (" และความละเอียดไม่เหมือนจออื่น" if odd else ""),
+                "ถ้าจอนี้เป็นจอคนคุม (ไม่ใช่โปรเจคเตอร์) ให้เอาเลขนี้ออกจากช่อง 'จอ:' "
+                "หรือติ๊ก 'เลือกจอให้เอง' ไม่อย่างนั้น calibrate จะข้ามจอนี้และหน้าต่างเล่นจะทับจอคนคุม")
     extra = [m.number for m in mons if m.number not in want]
-    if cfg["stack"]["enabled"] and extra:
+    if cfg["stack"]["enabled"] and extra and not auto:
         rep.add(WARN, f"จอ {', '.join(map(str, sorted(extra)))} ต่ออยู่แต่ไม่อยู่ในรายการจอที่ใช้ (จะเห็นเป็นหน้าจอ Windows)",
                 "ถ้าเป็นโปรเจคเตอร์โดม ให้เพิ่มเลขนี้ในช่อง 'จอ:' ถ้าเป็นจอคนคุมไม่ต้องทำอะไร")
     _check_cards(rep, mons, want)
@@ -175,9 +201,11 @@ def check_monitors(rep: Report, cfg: dict) -> list:
                   and m.y < y1 and m.y + m.height > y0]
         holes = (x1 - x0) * (y1 - y0) - sum(m.width * m.height for m in used)
         if inside:
-            rep.add(WARN, f"จอ {', '.join(str(m.number) for m in inside)} อยู่ในพื้นที่ของโดม จะโดนหน้าต่างเล่นทับ",
-                    "แนะนำ: ใน Display settings ลากจอนั้นไปไว้ด้านข้าง ให้จอโดมเรียงต่อกันเป็นแถว")
-        elif holes > 0:
+            rep.add(OK, f"จอ {', '.join(str(m.number) for m in inside)} อยู่ระหว่างจอโดม: "
+                        "หน้าต่างเล่นจะเว้นจอนั้นไว้ให้ใช้งานได้",
+                    "ถ้ากด เล่น แล้วจอนั้นดำ (ยังไม่เคยลองกับเครื่องนี้): ใน Display settings "
+                    "ลากจอนั้นไปไว้ริมสุดด้านใดด้านหนึ่ง ให้จอโดมเรียงติดกัน")
+        elif holes > 0 and not auto:
             rep.add(WARN, "จอโดมเรียงกันไม่เป็นสี่เหลี่ยม (มีช่องว่าง) หน้าต่างจะใหญ่กว่าที่จำเป็น",
                     "แนะนำ: ใน Display settings จัดจอโดมให้อยู่แถวเดียวกัน ขอบบนตรงกัน")
     return mons
@@ -201,6 +229,11 @@ def _check_cards(rep: Report, mons: list, want: list) -> None:
         if n in ad:
             cards.setdefault(ad[n][1], []).append(n)
             names[ad[n][1]] = ad[n][0]
+    try:      # kept in the report: tells which projector hangs on which socket
+        from .monitors import ports
+        log.info("graphics-card sockets: %s", ports())
+    except Exception:  # noqa: BLE001
+        pass
     if len(cards) < 2:
         return
     listing = "\n".join(f"การ์ดใบที่ {i + 1} ({names[k]}): จอ {', '.join(map(str, v))}"
@@ -209,9 +242,10 @@ def _check_cards(rep: Report, mons: list, want: list) -> None:
     most = max(cards.values(), key=len)
     mine = cards.get(ad[primary][1], []) if primary in ad else []
     if len(mine) < len(most):
-        rep.add(WARN, f"จอหลักของ Windows (จอ {primary}) อยู่บนการ์ดจอใบที่ต่อโปรเจคเตอร์น้อยกว่า",
-                listing + f"\nแนะนำ: ตั้งจอ {most[0]} เป็นจอหลัก (Display settings > คลิกจอ {most[0]} > "
-                "ติ๊ก Make this my main display) ภาพจะลื่นกว่า แล้วกดตรวจใหม่")
+        rep.add(OK, "โปรเจคเตอร์ต่ออยู่บนการ์ดจอ 2 ใบ (ภาพวาดบนใบเดียวแล้วส่งต่อให้อีกใบ)",
+                listing + "\nจอหลักของ Windows ไม่ต้องเปลี่ยน (ควรเป็นจอคนคุม)"
+                "\nถ้าตอนเล่นภาพกระตุก (กด F1 ดู หรือดูบรรทัด health ใน log): เปิด NVIDIA Control Panel > "
+                "Manage 3D settings > OpenGL rendering GPU แล้วเลือกการ์ดใบที่ต่อโปรเจคเตอร์มากกว่า")
     else:
         rep.add(OK, "จอหลักของ Windows อยู่บนการ์ดจอใบที่ต่อโปรเจคเตอร์มากที่สุด", listing)
 
@@ -401,19 +435,35 @@ def check_calibration(rep: Report, cfg: dict, mons: list) -> None:
         rep.add(WARN, "config.json: calibration.use ปิดอยู่ หรือ calibration.simulate เปิดอยู่",
                 "ค่า calibrate / กล้องจริงจะไม่ถูกใช้  แก้: ตั้ง use เป็น true และ simulate เป็น false")
     by = {m.number: m for m in mons}
-    wrong = [f"จอ {n}: ทำไว้ {o['size'][0]}x{o['size'][1]} ตอนนี้ {by[int(n)].width}x{by[int(n)].height}"
+    from .monitors import ports, remap_by_port, wanted
+    move = remap_by_port(info.get("ports") or {}, ports())       # old number -> number today
+    today = lambda n: move.get(int(n), int(n)) if move else int(n)  # noqa: E731
+    moved = {k: v for k, v in move.items() if v is not None and k != v}
+    gone = [k for k, v in move.items() if v is None]
+    if moved:
+        rep.add(OK, "Windows เปลี่ยนเลขจอไปจากวันที่ calibrate แต่โปรแกรมจำช่องเสียบของการ์ดจอไว้ จึงใช้ค่าเดิมได้",
+                ", ".join(f"จอ {k} ตอนนั้น = จอ {v} ตอนนี้" for k, v in sorted(moved.items())))
+    if gone:
+        rep.add(FAIL, f"ช่องเสียบของจอ {', '.join(map(str, sorted(gone)))} (เลขตอน calibrate) ตอนนี้ไม่มีจอต่ออยู่",
+                "โปรเจคเตอร์เครื่องนั้นปิดอยู่ สายหลุด หรือย้ายสายไปช่องอื่น  แก้: เปิดเครื่อง/เสียบสายช่องเดิม หรือ calibrate ใหม่")
+    wrong = [f"จอ {today(n)}: ทำไว้ {o['size'][0]}x{o['size'][1]} ตอนนี้ {by[today(n)].width}x{by[today(n)].height}"
              for n, o in info.get("outputs", {}).items()
-             if int(n) in by and tuple(o["size"]) != (by[int(n)].width, by[int(n)].height)]
+             if today(n) in by and tuple(o["size"]) != (by[today(n)].width, by[today(n)].height)]
     st = info.get("stats", {})
     detail = (f"ทำเมื่อ {info.get('created')}  โหมด {info.get('mode')}  จอ {info.get('monitors')}\n"
               f"ความสว่างต่างกัน {st.get('uniformity_before', 0)*100:.0f}% -> {st.get('uniformity_after', 0)*100:.0f}%"
               f"  มีค่าสำรอง {n_bak} ชุด")
-    want = list(cfg["stack"]["monitors"]) if cfg["stack"]["enabled"] else [cfg["display"]["monitor"]]
+    want = wanted(cfg, mons)
+    had = sorted(t for t in (today(n) for n in info.get("monitors") or []) if t is not None)
+    if info.get("skipped"):
+        detail += ("\nตอน calibrate กล้องไม่เห็นจอ " + ", ".join(map(str, info["skipped"]))
+                   + " (เลขตอนนั้น): จอนั้นไม่มีค่า calibrate และจะดำ")
     if wrong:
         rep.add(FAIL, "ความละเอียดจอเปลี่ยนไปจากตอน calibrate", detail + "\n" + "\n".join(wrong) +
                 "\nแก้: ตั้งความละเอียดกลับเหมือนเดิม หรือ calibrate ใหม่ (K K)")
-    elif info.get("monitors") and list(info["monitors"]) != want:
-        rep.add(WARN, f"calibrate ไว้กับจอ {info['monitors']} แต่ตอนนี้ตั้งใช้จอ {want}", detail)
+    elif had and had != sorted(want):
+        rep.add(WARN, f"calibrate ไว้กับจอ {had} แต่ตอนนี้ใช้จอ {sorted(want)}",
+                detail + "\nจอที่ไม่มีค่า calibrate จะดำ  ถ้าเพิ่มโปรเจคเตอร์หรือเปลี่ยนรายการจอ ให้ calibrate ใหม่")
     else:
         rep.add(OK, "มีค่า calibrate พร้อมใช้", detail)
 

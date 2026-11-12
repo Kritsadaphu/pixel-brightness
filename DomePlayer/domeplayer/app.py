@@ -28,7 +28,8 @@ import time
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from . import warp, watchdog
+from . import monitors as displays
+from . import remote, warp, watchdog
 from .config import APP_DIR, ConfigError, load_config, resolve_path, save_outputs, save_setting
 
 log = logging.getLogger("domeplayer")
@@ -278,6 +279,12 @@ class DomePlayer:
         self.frame_no = 0
         self._rects: dict[int, tuple[int, int, int, int]] = {}
         self.exit_code = 0
+        self.ports: dict[int, str] = {}       # monitor number -> graphics-card socket (Windows)
+        self._next_health = time.perf_counter() + 20
+        self._next_status = 0.0
+        self._next_shot = 0.0
+        self._cam_note = None                 # camera page facts for the control panel
+        self._cal_result = None               # outcome of the last calibration, for the control panel
 
     # ---- window ----------------------------------------------------------------------
     def create_window(self):
@@ -296,6 +303,12 @@ class DomePlayer:
         primary = next((m for m in all_mons if m.primary), all_mons[0] if all_mons else None)
         if primary is None:
             raise RuntimeError("no monitor found")
+        if self.cfg["stack"]["enabled"] and self.cfg["stack"].get("auto") and d["fullscreen"]:
+            self.nums = displays.wanted(self.cfg, all_mons)
+            log.info("automatic monitor list: every display except the main one = %s", self.nums)
+        self.ports = displays.ports()
+        if self.ports:
+            log.info("graphics-card sockets: %s", self.ports)
         missing = [n for n in self.nums if n not in by_num]
 
         glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
@@ -343,6 +356,13 @@ class DomePlayer:
                 if win:
                     glfw.set_window_pos(win, x0, y0)
                     glfw.set_window_size(win, x1 - x0, y1 - y0)
+                    between = [m.number for m in all_mons if m.number not in self.nums
+                               and m.x < x1 and m.x + m.width > x0 and m.y < y1 and m.y + m.height > y0]
+                    if between:      # e.g. the operator's screen sits between the projectors
+                        free = _window_keep_only(glfw, win, [(m.x - x0, m.y - y0, m.width, m.height)
+                                                             for m in present])
+                        log.info("monitor %s lies inside the show window: %s", between,
+                                 "left free" if free else "could not be left free, it is covered")
                     glfw.show_window(win)
                 self.layout = "fixed"
                 self.fixed_rects = {m.number: (m.x - x0, m.y - y0, m.width, m.height) for m in present}
@@ -588,7 +608,7 @@ class DomePlayer:
             self.say("dome circle saved. Now K K = calibrate", 5)
             return
         self.say("dome circle saved - recalculating from the last camera pictures ...", 5)
-        self._start_solve(data)
+        self._start_solve(self._capture_for_today(data))
 
     def toggle_edit(self) -> None:
         if self.edit:
@@ -728,6 +748,8 @@ class DomePlayer:
                      f"(about {int(len(self.nums) * 22 + 17)} s, room dark, camera must not move)", 4)
             return
         self._k_armed = 0.0
+        if getattr(self.camera, "index", 0) == -2:      # the still picture of a video calibration
+            self.close_camera()
         if not self.open_camera():
             return
         self.preview = False
@@ -750,28 +772,164 @@ class DomePlayer:
         log.info("calibration started: %d patterns, outputs %s sizes %s",
                  len(self.session.steps), self.nums, sizes)
 
+    # ---- calibration with a camera that records a video (360 camera, phone) ----------------
+    def start_show(self) -> None:
+        """Show every pattern on a timetable while the camera records."""
+        if self.session is not None or self._solve is not None:
+            return
+        sizes = {n: (r[2], r[3]) for n, r in self._rects.items()}
+        if any(n not in sizes for n in self.nums):
+            self.say("outputs are not ready yet, try again", 4)
+            return
+        cc = self.cfg["calibration"]
+        from .calib.session import PatternShow
+        self.close_camera()
+        self.preview = False
+        self.edit = False
+        self.solo = None
+        self.test = 0
+        self.session = PatternShow(self.nums, sizes, int(cc["skip_bits"]), float(cc["show_hold_ms"]) / 1000.0)
+        log.info("pattern show for a recording camera started: %d patterns, %.0f s, outputs %s",
+                 len(self.session.inner.steps), self.session.total, self.nums)
+
+    def _after_show(self, show) -> None:
+        import json
+        rec = show.record()
+        rec["ports"] = {str(n): self.ports[n] for n in self.nums if n in self.ports}
+        try:
+            self.cal_folder.mkdir(parents=True, exist_ok=True)
+            (self.cal_folder / "show.json").write_text(json.dumps(rec), encoding="utf-8")
+        except OSError as e:
+            self.say(f"could not save the pattern times: {e}", 20)
+            self._cal_result = {"ok": False, "text": f"could not save the pattern times: {e}", "at": time.time()}
+            return
+        self._show_done = time.time()
+        self.say("patterns finished. Stop the recording, copy the video file to this PC,\n"
+                 "then choose it in the control panel (calibrate from video file)", 30)
+
+    def start_video_calibration(self, path: str) -> None:
+        """Read the recording of the last pattern show and calibrate from it."""
+        import json
+        if self.session is not None or self._solve is not None:
+            self.say("busy - wait until the current step is finished", 4)
+            return
+        try:
+            show = json.loads((self.cal_folder / "show.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            self.say("no pattern show was run yet: first show the patterns while the camera records", 10)
+            self._cal_result = {"ok": False, "text": "no pattern show was run yet", "at": time.time()}
+            return
+        move = displays.remap_by_port(show.get("ports") or {}, self.ports)
+        max_px = int(self.cfg["calibration"]["video_max_px"])
+
+        def read(progress):
+            from .calib import video
+            data = video.decode_best(path, show, max_px=max_px, progress=progress, work_dir=VIDEO_TMP)
+            if move:      # Windows renumbered the displays between the show and now
+                data["projectors"] = {move.get(n, n): v for n, v in data["projectors"].items()
+                                      if move.get(n, n) is not None}
+                data["skipped"] = [move.get(n, n) for n in data["skipped"] if move.get(n, n) is not None]
+            data["ports"] = {str(n): self.ports[n] for n in data["projectors"] if n in self.ports}
+            return data
+
+        # every recording is cut to its own lit area, so a dome circle saved on another picture does
+        # not fit: find it again (the operator then adjusts it on the still picture). The cut picture
+        # has no known lens centre either, so only the fisheye way of reading it applies.
+        try:
+            self.circle = [0.0, 0.0, 0.0]
+            self.circle_dirty = False
+            save_setting(self.cfg["_config_path"], "calibration", "dome_circle", self.circle)
+            if float(self.cfg["calibration"]["lens_mm"]) > 0:
+                self.cfg["calibration"]["lens_mm"] = 0.0
+                save_setting(self.cfg["_config_path"], "calibration", "lens_mm", 0.0)
+        except (OSError, ValueError):
+            pass
+
+        log.info("calibration from video file %s", path)
+        self.say("reading the video ... (this can take several minutes)", 8)
+        self._start_solve(None, save_raw=True, source=read)
+
+    def show_still(self) -> None:
+        """The dome as the last video saw it, to set the dome circle on."""
+        pic = self.cal_folder / "camera_white_all.jpg"
+        if not pic.exists():
+            self.say("no camera picture yet - calibrate first", 5)
+            return
+        self.close_camera()
+        try:
+            from .calib.camera import StillCamera
+            self.camera = StillCamera(pic)
+        except Exception as e:  # noqa: BLE001
+            self.say(f"could not open the saved camera picture: {e}", 6)
+            return
+        self.preview = True
+
+    def set_lens(self, mm: float) -> None:
+        """0 = fisheye / 360 camera, otherwise the focal length of a normal lens. Recalculates."""
+        self.cfg["calibration"]["lens_mm"] = float(mm)
+        try:
+            save_setting(self.cfg["_config_path"], "calibration", "lens_mm", float(mm))
+        except (OSError, ValueError) as e:
+            self.say(f"could not save config.json: {e}", 6)
+            return
+        if self.session is not None or self._solve is not None:
+            return
+        from .calib import solve
+        busy(120)
+        try:
+            data = solve.load_capture(self.cal_folder)
+        except Exception:  # noqa: BLE001
+            data = None
+        if data is not None:
+            self.say("camera lens type changed - recalculating from the last camera pictures ...", 5)
+            self._start_solve(self._capture_for_today(data))
+
     def _after_capture(self) -> None:
         ses, self.session = self.session, None
+        if hasattr(ses, "record"):          # a pattern show: nothing was read, only shown
+            self._after_show(ses)
+            return
         if ses.error:
             self.say(f"calibration stopped: {ses.error}\nnothing was changed  (also in logs/domeplayer.log)", 60)
+            self._cal_result = {"ok": False, "text": ses.error, "at": time.time()}
             return
         data = ses.result()
+        data["ports"] = {str(n): self.ports[n] for n in data["projectors"] if n in self.ports}
         self._start_solve(data, save_raw=True)
 
-    def _start_solve(self, data: dict, save_raw: bool = False) -> None:
+    def _capture_for_today(self, data: dict) -> dict:
+        """A saved capture is filed under the display numbers of its day. Windows may have
+        renumbered the displays since: move every projector to the number its socket has today."""
+        move = displays.remap_by_port(data.get("ports") or {}, self.ports)
+        if move:
+            data["projectors"] = {move.get(n, n): v for n, v in data["projectors"].items()
+                                  if move.get(n, n) is not None}
+            data["skipped"] = [move.get(n, n) for n in data.get("skipped") or [] if move.get(n, n) is not None]
+            log.warning("the saved camera pictures were taken under other display numbers (%s) - followed the sockets",
+                        ", ".join(f"{k} is now {v}" for k, v in move.items() if v is not None and k != v))
+        data["ports"] = {str(n): self.ports[n] for n in data["projectors"] if n in self.ports}
+        return data
+
+    def _start_solve(self, data: dict | None, save_raw: bool = False, source=None) -> None:
+        """source(progress) -> data: a slow way to get the data (reading a video), done in the
+        same background thread before the calculation."""
         ref = self.nums[0]
         cc = self.cfg["calibration"]
         dome = None
         if self.cal_mode == "dome":
             dome = {"circle": list(self.circle), "front_deg": self.front_deg,
                     "lens_mm": cc["lens_mm"], "sensor_width_mm": cc["sensor_width_mm"]}
-        job = {"progress": 0.0, "result": None, "error": None,
+        job = {"progress": 0.0, "result": None, "error": None, "reading": source is not None,
                "old_circle": bool(save_raw and dome is not None and self.circle[2] > 0)}
 
         def work():
+            nonlocal data
             try:
                 from .calib import solve
                 from . import backup
+                if source is not None:
+                    data = source(lambda p: job.__setitem__("progress", 0.8 * p))
+                    job["reading"] = False
                 try:
                     backup.backup(self.cal_folder, Path(self.cfg["_config_path"]),
                                   "before new calibration" if save_raw else "before dome circle change")
@@ -782,13 +940,23 @@ class DomePlayer:
                         solve.save_capture(data, self.cal_folder)
                     except Exception:  # noqa: BLE001 - only needed to change the circle later
                         log.exception("could not keep the camera pictures")
-                res = solve.solve(data, ref, progress=lambda p: job.__setitem__("progress", p), dome=dome)
-                solve.save(res, self.cal_folder, {"monitors": self.nums,
-                                                  "camera": self.cam_index})
+                part = 0.8 if source is not None else 0.0
+                res = solve.solve(data, ref, dome=dome,
+                                  progress=lambda p: job.__setitem__("progress", part + (1 - part) * p))
+                seen = max((float(o["coverage"]) for o in res["outputs"].values()), default=0.0)
+                even = res["stats"].get("uniformity_after")
+                if not seen > 0.02 or even is None or even != even:       # (NaN != NaN)
+                    raise RuntimeError("no projector picture could be read from the camera pictures - "
+                                       "nothing was saved")
+                solve.save(res, self.cal_folder, {
+                    "monitors": self.nums, "camera": self.cam_index,
+                    "skipped": list(data.get("skipped") or []), "video": data.get("video"),
+                    "crop": data.get("crop"), "lens_mm": cc["lens_mm"],
+                    "ports": {str(n): self.ports[n] for n in self.nums if n in self.ports}})
                 job["result"] = solve.load(self.cal_folder)
             except Exception as e:  # noqa: BLE001
                 log.exception("calibration solve failed")
-                job["error"] = str(e)
+                job["error"] = str(e) or type(e).__name__
 
         job["thread"] = threading.Thread(target=work, name="calib-solve", daemon=True)
         job["thread"].start()
@@ -801,6 +969,7 @@ class DomePlayer:
         self._solve = None
         if job["error"]:
             self.say(f"calibration failed: {job['error']}\nnothing was changed  (also in logs/domeplayer.log)", 60)
+            self._cal_result = {"ok": False, "text": job["error"], "at": time.time()}
             return
         self._cal_data = job["result"]
         self.cal_use = True
@@ -818,6 +987,10 @@ class DomePlayer:
                if o.get("coverage", 1) < 0.9]
         if low:
             warn.append("the camera saw only part of monitor " + ", ".join(low))
+        skipped = info.get("skipped") or []
+        if skipped:
+            warn.append("the camera did NOT see monitor " + ", ".join(map(str, skipped)) + " at all, it stays black "
+                        "(fine if that display is not a dome projector; otherwise switch it on and calibrate again)")
         tail = ("\nCHECK: " + "; ".join(warn) + ".\nWhat the camera cannot see stays BLACK. Press C: the whole "
                 "dome edge must be inside the camera picture") if warn else ""
         if job.get("old_circle"):
@@ -826,6 +999,9 @@ class DomePlayer:
                  f"brightness evenness: {st['uniformity_before']*100:.0f}% -> {st['uniformity_after']*100:.0f}% "
                  f"variation, keeps {st['brightness_kept']*100:.0f}% of the light\n"
                  "T = grid / white / video   U = compare with calibration off" + tail, 40 if tail else 12)
+        self._cal_result = {"ok": True, "at": time.time(), "warnings": warn, "skipped": skipped,
+                            "before": round(st["uniformity_before"] * 100), "after": round(st["uniformity_after"] * 100),
+                            "outputs": sorted(int(n) for n in info["outputs"])}
 
     def _build_cal_textures(self, rects: dict) -> None:
         """Upload loaded calibration as GL textures (main thread, needs output sizes)."""
@@ -833,6 +1009,7 @@ class DomePlayer:
         data, self._cal_data = self._cal_data, None
         if data is None:
             return
+        self._follow_sockets(data)
         mgl = self.mgl
         if self.cal is not None:
             for t in self.cal["tex"].values():
@@ -871,6 +1048,37 @@ class DomePlayer:
             self.auto_circle = list(info["circle"])
         log.info("calibration (%s) loaded for monitors %s (reference %s)", self.cal["mode"],
                  sorted(tex), data["ref"])
+
+    def _follow_sockets(self, data: dict) -> None:
+        """Windows may number the displays differently than on the day of the calibration (a
+        projector switched on late, a cable re-plugged). The graphics-card socket of every
+        output was saved with it: give each warp to the display on that socket today."""
+        saved = (data.get("info") or {}).get("ports") or {}
+        move = displays.remap_by_port(saved, self.ports)
+        if not move:
+            return
+        if all(v is None for v in move.values()):
+            msg = ("none of the graphics-card sockets of the calibration is in use now (cables moved or driver "
+                   "changed?) - using the display numbers. If the picture is mixed up, calibrate again")
+            log.warning(msg)
+            self.messages.append(msg)
+            return
+        outs = {}
+        for n, o in data["outputs"].items():
+            target = move.get(n, n)
+            if target is None:
+                log.warning("calibration of monitor %s: nothing is connected to its socket now", n)
+                continue
+            if n not in move and target in move.values():
+                continue        # no socket known for it and its number now belongs to another one
+            outs[target] = o
+        changed = {k: v for k, v in move.items() if v is not None and k != v}
+        if changed:
+            log.warning("Windows numbers the displays differently than at calibration (%s): "
+                        "the calibration follows the sockets", ", ".join(f"{k} is now {v}" for k, v in changed.items()))
+        data["outputs"] = outs
+        if data.get("ref") is not None:
+            data["ref"] = move.get(data["ref"], data["ref"])
 
     def load_saved_calibration(self) -> None:
         try:
@@ -923,6 +1131,19 @@ class DomePlayer:
                 dr.text((fx + 6, fy - 6), "FRONT", fill=(255, 80, 80))
             self.preview_img.set_image(small)
             black = float(gray.max()) < 10
+            self._cam_note = {"index": getattr(self.camera, "index", self.cam_index), "size": [fw_, fh_],
+                              "over": round(over, 1),
+                              "black": black, "fps": round(float(getattr(self.camera, "fps", 0.0) or 0.0))}
+            if now >= self._next_shot:          # the same picture, for the control panel
+                self._next_shot = now + 0.5
+                try:
+                    shot = small.copy()
+                    shot.thumbnail((640, 400))
+                    tmp = remote.PREVIEW.with_suffix(".tmp")
+                    shot.save(tmp, "PNG", compress_level=1)
+                    os.replace(tmp, remote.PREVIEW)
+                except OSError:
+                    pass
             hint = ("  <- picture is all black: probably not the R50 (e.g. an NDI virtual webcam), "
                     "press ] for the next camera" if black else
                     "  <- too bright, lower exposure" if over > 1 else "")
@@ -1106,11 +1327,90 @@ class DomePlayer:
         self._stalled += 1
         return self._stalled >= 15
 
+    def _log_health(self) -> None:
+        """A line in the log now and then, so a problem report shows how smoothly it ran."""
+        now = time.perf_counter()
+        st = getattr(self, "stats", None)
+        if now < self._next_health or st is None or self.session is not None:
+            return
+        self._next_health = now + (30 if now - self._t_run < 300 else 600)
+        log.info("health: draws %.1f/s (display %.0f Hz), video %.1f/s, longest gap %.0f ms, late %d in 10 s, "
+                 "dropped %s + %s, decoder %s, outputs %s", st.render_fps, self.refresh_hz, st.video_fps,
+                 st.max_frame_gap_ms, st.missed_vsync_10s, self.prop("frame-drop-count"),
+                 self.prop("decoder-frame-drop-count"), self.prop("hwdec-current"), self.nums)
+
+    def _status(self, now: float) -> dict:
+        st = getattr(self, "stats", None)
+        d = {"time": time.time(), "pid": os.getpid(), "outputs": list(self.nums), "test": self.test,
+             "preview": bool(self.preview), "solo": self.solo, "edit": bool(self.edit),
+             "calibrated": sorted(self.cal["tex"]) if self.cal else [], "cal_use": bool(self.cal_use),
+             "toast": self.toast[0] if self.toast and now < self.toast[1] else "",
+             "messages": list(self.messages), "state": "play",
+             "paused": bool(self.prop("pause")) if self.player is not None else False,
+             "fps": round(st.render_fps, 1) if st else 0, "video_fps": round(st.video_fps, 1) if st else 0,
+             "camera": self._cam_note if self.preview else None, "circle_dirty": bool(self.circle_dirty),
+             "mode": self.cal_mode, "result": self._cal_result}
+        if self.session is not None:
+            step = self.session.step
+            d.update(state="capture", progress=round(self.session.progress, 3),
+                     eta=round(self.session.eta_s()), monitor=step.num if step else None,
+                     skipped=sorted(self.session.skipped))
+        elif self._solve is not None:
+            d.update(state="read" if self._solve.get("reading") else "solve",
+                     progress=round(self._solve["progress"], 3))
+        if self.session is not None and hasattr(self.session, "record"):
+            d["state"] = "show"
+        d["show_done"] = getattr(self, "_show_done", None)
+        d["lens_mm"] = self.cfg["calibration"]["lens_mm"]
+        return d
+
+    def _run_command(self, cmd: str) -> None:
+        """From the control panel: "calibrate", or "key NAME [ctrl] [shift]" = that key pressed."""
+        g = self.glfw
+        parts = cmd.split()
+        log.info("control panel: %s", cmd)
+        if parts[0] == "calibrate":
+            self._k_armed = time.perf_counter() + 4.0      # the panel already asked "are you sure"
+            self._handle_key(g.KEY_K, g.PRESS, 0)
+        elif parts[0] == "cancel":
+            if self.session is not None:
+                self._handle_key(g.KEY_ESCAPE, g.PRESS, 0)
+        elif self.session is not None or self._solve is not None:
+            self.say("busy - wait until this step is finished", 3)
+        elif parts[0] == "show":
+            self.start_show()
+        elif parts[0] == "video" and len(parts) >= 2:
+            self.start_video_calibration(cmd.split(" ", 1)[1].strip())
+        elif parts[0] == "still":
+            if self.preview:
+                self.toggle_preview()
+            else:
+                self.show_still()
+        elif parts[0] == "lens" and len(parts) >= 2:
+            self.set_lens(float(parts[1]))
+        elif parts[0] == "key" and len(parts) >= 2:
+            code = key_code(g, parts[1])
+            if code is not None:
+                mods = (g.MOD_CONTROL if "ctrl" in parts[2:] else 0) | (g.MOD_SHIFT if "shift" in parts[2:] else 0)
+                self._handle_key(code, g.PRESS, mods)
+
+    def _panel_tick(self, now: float) -> None:
+        for cmd in remote.take_commands():
+            try:
+                self._run_command(cmd)
+            except Exception as e:  # noqa: BLE001 - a button must never end the show
+                log.exception("command %r failed", cmd)
+                self.say(f"that did not work: {e}", 6)
+        if now >= self._next_status:
+            self._next_status = now + 0.5
+            remote.write_status(self._status(now))
+
     def _every_2s(self) -> None:
         if watchdog.stop_requested():       # the start window was asked to start a new show
             log.info("a new start of DomePlayer asked this one to stop")
             self.running = False
             return
+        self._log_health()
         if not SUPERVISED:
             return
         try:
@@ -1152,8 +1452,15 @@ class DomePlayer:
         next_beat = 0.0
         next_idle_check = 0.0
         next_restore = 0.0
+        next_panel = 0.0
         errors = 0
         self._t_run = time.perf_counter()
+        remote.take_commands()        # buttons pressed while no player was running do not count
+        try:                          # a copy left by a video reading that was cut short
+            for f in VIDEO_TMP.glob("*.tmp.mp4"):
+                f.unlink()
+        except OSError:
+            pass
 
         while self.running and not glfw.window_should_close(self.window):
             try:
@@ -1162,6 +1469,9 @@ class DomePlayer:
                 if now >= next_beat:
                     next_beat = now + 2.0
                     self._every_2s()
+                if now >= next_panel:
+                    next_panel = now + 0.2
+                    self._panel_tick(now)
                 if self._monitors_changed is not None and now - self._monitors_changed > 3.0:
                     self._monitors_changed = None
                     log.warning("monitors were connected/disconnected (projector turned off or on?)")
@@ -1460,6 +1770,32 @@ class DomePlayer:
 
 SUPERVISED = False                      # started by the watchdog (--supervised)
 HEARTBEAT = APP_DIR / "logs" / "heartbeat.txt"
+VIDEO_TMP = APP_DIR / "video_tmp"       # working copy when the second lens of a two-lens file is read
+
+
+def _window_keep_only(glfw, win, rects) -> bool:
+    """Windows: the window exists only on these rectangles (window pixels). A monitor lying
+    between the projectors (the operator's screen) then stays visible and usable."""
+    if os.name != "nt":
+        return False
+    try:
+        import ctypes
+        from ctypes import wintypes
+        gdi, user = ctypes.windll.gdi32, ctypes.windll.user32
+        gdi.CreateRectRgn.restype = wintypes.HANDLE
+        gdi.CreateRectRgn.argtypes = [ctypes.c_int] * 4
+        gdi.CombineRgn.argtypes = [wintypes.HANDLE, wintypes.HANDLE, wintypes.HANDLE, ctypes.c_int]
+        gdi.DeleteObject.argtypes = [wintypes.HANDLE]
+        user.SetWindowRgn.argtypes = [wintypes.HWND, wintypes.HANDLE, wintypes.BOOL]
+        region = gdi.CreateRectRgn(0, 0, 0, 0)
+        for x, y, w, h in rects:
+            part = gdi.CreateRectRgn(int(x), int(y), int(x + w), int(y + h))
+            gdi.CombineRgn(region, region, part, 2)          # 2 = RGN_OR
+            gdi.DeleteObject(part)
+        return bool(user.SetWindowRgn(glfw.get_win32_window(win), region, True))   # Windows now owns it
+    except Exception:  # noqa: BLE001
+        log.exception("could not shape the window")
+        return False
 EXIT_MONITORS_CHANGED = 3
 
 
@@ -1526,8 +1862,29 @@ def main(argv: list[str] | None = None) -> int:
             import numpy
             import_mpv()
             from .calib import camera, session, solve  # noqa: F401
-            from . import backup, check, report  # noqa: F401  (watchdog is imported at the top)
-            log.info("self-test OK: opencv %s, numpy %s", cv2.__version__, numpy.__version__)
+            from . import backup, check, report, ydome  # noqa: F401  (watchdog is imported at the top)
+            from .calib import video
+            # calibration from a recorded video needs OpenCV's own video-file reader in the package:
+            # write a tiny film and read it back
+            import tempfile
+            film = Path(tempfile.gettempdir()) / "domeplayer-selftest.mp4"
+            out = cv2.VideoWriter(str(film), cv2.VideoWriter_fourcc(*"mp4v"), 30.0, (64, 48))
+            for i in range(12):
+                out.write(numpy.full((48, 64, 3), i * 20, numpy.uint8))
+            out.release()
+            cap = cv2.VideoCapture(video.plain_path(film), cv2.CAP_FFMPEG)
+            frames = 0
+            while cap.read()[0]:
+                frames += 1
+            cap.release()
+            tracks = len(video.video_tracks(film))
+            try:
+                film.unlink()
+            except OSError:
+                pass
+            if frames < 10 or tracks != 1:
+                raise RuntimeError(f"video files cannot be read ({frames} pictures, {tracks} track)")
+            log.info("self-test OK: opencv %s, numpy %s, video files readable", cv2.__version__, numpy.__version__)
             return 0
         except Exception:  # noqa: BLE001
             log.exception("self-test failed")

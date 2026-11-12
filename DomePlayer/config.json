@@ -53,7 +53,8 @@
       4,
       5,
       1
-    ]
+    ],
+    "auto": true
   },
   "outputs": {},
   "calibration": {
@@ -71,7 +72,7 @@
       0
     ],
     "dome_front_deg": 0.0,
-    "lens_mm": 10.0,
+    "lens_mm": 0.0,
     "sensor_width_mm": 22.3
   },
   "mask": {

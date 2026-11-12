@@ -6,6 +6,9 @@ Before that, every projector flashes white/black a few times. The camera's delay
 the picture being shown until the camera delivers it) is measured from these flashes, and
 the wait per pattern is made long enough for it. This also checks the camera sees the dome.
 
+A projector the camera does not see at all (switched off, or not a dome projector) is left
+out and the others carry on; it then simply stays black.
+
 Result per projector: camera-space maps of the projector pixel that lights each camera pixel
 (px, py; NaN where unknown) and its full-white camera image. Plus one all-black image.
 """
@@ -31,6 +34,8 @@ class Step:
 PROBE_S = 2.5          # how long each flash is held while measuring the camera delay
 PROBE_FLASHES = 2      # white flashes (each followed by black)
 MAX_DELAY_S = 3.0
+FINE = 3               # the finest stripe sizes are only used when the camera can resolve them
+READABLE = 0.35        # ... = readable on at least this part of the projector's lit camera pixels
 
 
 class CalibrationSession:
@@ -69,6 +74,11 @@ class CalibrationSession:
         self.white = {}
         self.code = {}         # num -> [code_x, code_y] uint32 gray-code bits
         self.bad = {}          # num -> bool mask of unreliable pixels
+        self.skipped: dict = {}   # num -> why it was left out (the camera did not see it)
+        self._lit = {}         # num -> camera pixels this projector lights
+        self._weak = {}        # num -> {(axis, bit): unreadable-pixel mask} of the finest stripe sizes
+        self.bit_ok = {}       # num -> {(axis, bit): part of the lit pixels where that size is readable}
+        self.drop = {}         # num -> [x, y] how many of the finest sizes were left out
         self._pending = None   # frame of the non-inverted stripe, waiting for its inverse
         self.t_shown = None
         self.delays: list[float] = []     # measured camera delay per flash change (s)
@@ -128,9 +138,14 @@ class CalibrationSession:
             self.done = True
             return
         self.i += 1
+        while self.i < len(self.steps) and self.steps[self.i].num in self.skipped:
+            self.i += 1          # nothing more to show on a projector the camera does not see
         self.t_ready = None
         if self.i >= len(self.steps):
             self.done = True
+            if not self.white:
+                self.error = ("the camera did not see any projector light up. Are the projectors on, is the "
+                              "camera pointing at the dome, is its exposure too dark?")
 
     def _probe_poll(self, st: Step) -> None:
         import numpy as np
@@ -192,7 +207,7 @@ class CalibrationSession:
             if self.black is None:
                 self.black = g
                 log.info("black frame: mean %.1f, max %.1f", g.mean(), g.max())
-                if np.percentile(g, 99.9) > 200:   # a few bright pixels (LED, lamp) are fine
+                if np.percentile(g, 97) > 200:     # bright spots (LED, lamp, a lit screen) are fine
                     raise RuntimeError("camera picture is too bright with all projectors black - "
                                        "darken the room or lower the camera exposure")
             else:
@@ -205,15 +220,19 @@ class CalibrationSession:
             peak = float(np.percentile(diff, 99.5))
             log.info("monitor %s white: contrast p99.5 %.1f, clipped %.1f%%", n, peak, clipped * 100)
             if peak < 25:
-                raise RuntimeError(f"monitor {n}: the camera barely sees it (contrast {peak:.0f}). "
-                                   "Is that projector on, and in the camera's view? "
-                                   "Or raise the camera exposure.")
+                # carry on with the others: this one gets no calibration and stays black
+                self.skipped[n] = f"contrast {peak:.0f}"
+                log.warning("monitor %s: the camera does not see it (contrast %.0f) - left out, stays black",
+                            n, peak)
+                return
             if clipped > 0.02:
                 raise RuntimeError(f"monitor {n}: {clipped*100:.0f}% of its picture is over-exposed in the "
                                    "camera - set the camera to MANUAL exposure with fixed ISO, lower ISO/shutter and try again")
             self.white[n] = g
             self.code[n] = [np.zeros(g.shape, np.uint32), np.zeros(g.shape, np.uint32)]
             self.bad[n] = diff < max(12.0, peak * 0.12)
+            self._lit[n] = ~self.bad[n]
+            self._weak[n], self.bit_ok[n] = {}, {}
             return
         # gray stripes
         if not st.inv:
@@ -223,29 +242,118 @@ class CalibrationSession:
         self._pending = None
         contrast = self.white[n] - self.black
         reliable = np.abs(p - q) > np.maximum(4.0, contrast * 0.10)
-        self.bad[n] |= ~reliable
+        lit = self._lit[n]
+        self.bit_ok[n][(st.axis, st.bit)] = float(np.mean(reliable[lit])) if lit.any() else 0.0
+        if st.bit < self.skip + FINE:
+            self._weak[n][(st.axis, st.bit)] = ~reliable      # used or left out when all are in
+        else:
+            self.bad[n] |= ~reliable
         bit = (p > q).astype(np.uint32)
         self.code[n][st.axis] |= bit << np.uint32(st.bit - self.skip)
 
     # ---- result ------------------------------------------------------------------------------
     def result(self) -> dict:
         import numpy as np
-        out = {"black": self.black, "projectors": {}}
+        out = {"black": self.black, "projectors": {}, "skipped": sorted(self.skipped)}
         for n in self.nums:
+            if n in self.skipped:
+                continue
             w, h = self.sizes[n]
-            px = _gray_to_bin(self.code[n][0]).astype(np.float32) * (1 << self.skip) + (1 << self.skip) / 2 - 0.5
-            py = _gray_to_bin(self.code[n][1]).astype(np.float32) * (1 << self.skip) + (1 << self.skip) / 2 - 0.5
-            bad = self.bad[n] | (px > w - 1 + (1 << self.skip)) | (py > h - 1 + (1 << self.skip))
+            bad = self.bad[n].copy()
+            pos, self.drop[n] = [], []
+            for axis, size in ((0, w), (1, h)):
+                # a camera with few pixels cannot tell the finest stripes apart: leave those sizes
+                # out (coarser position, but a full picture instead of one full of holes)
+                d = 0
+                while (d < FINE and self.skip + d < self.bits[n][axis] - 1
+                       and self.bit_ok[n].get((axis, self.skip + d), 1.0) < READABLE):
+                    d += 1
+                for (a, b), weak in self._weak[n].items():
+                    if a == axis and b >= self.skip + d:
+                        bad |= weak
+                block = 1 << (self.skip + d)
+                v = _gray_to_bin(self.code[n][axis] >> np.uint32(d)).astype(np.float32) * block + block / 2 - 0.5
+                bad |= v > size - 1 + block
+                pos.append(v)
+                self.drop[n].append(d)
+            px, py = pos
             px[bad] = np.nan
             py[bad] = np.nan
             out["projectors"][n] = {"px": np.clip(px, 0, w - 1), "py": np.clip(py, 0, h - 1),
                                     "white": self.white[n], "size": (w, h)}
-            log.info("monitor %s: decoded %.1f%% of camera pixels", n, 100 * np.mean(~bad))
+            log.info("monitor %s: decoded %.1f%% of camera pixels, finest stripes used %d x %d projector pixels",
+                     n, 100 * np.mean(~bad), 1 << (self.skip + self.drop[n][0]), 1 << (self.skip + self.drop[n][1]))
+            self._weak[n] = {}
         if self.black_end is not None:
             drift = float(np.mean(np.abs(self.black_end - self.black)))
             out["black_drift"] = drift
             log.info("black drift during capture: %.2f grey levels", drift)
         return out
+
+
+class PatternShow:
+    """The same patterns on a fixed timetable, for a camera that RECORDS a video (a 360 camera,
+    a phone ...) instead of sending live pictures. Nothing is read here: the recording is
+    decoded afterwards (video.py) using the times kept in 'record()'.
+
+    Timetable: black, three white flashes on every projector (the decoder finds them in the
+    video and so knows where each pattern is), every pattern for hold_s, a last flash."""
+
+    PRE = ((True, 2.0), (False, 1.0), (True, 1.0), (False, 1.0), (True, 1.0), (False, 1.0), (True, 1.5))
+    POST = ((True, 1.0), (False, 1.0), (True, 1.0))        # (black?, seconds)
+
+    def __init__(self, nums, sizes: dict, skip_bits=2, hold_s=0.7):
+        self.inner = CalibrationSession(nums, sizes, None, skip_bits=skip_bits, measure_delay=False)
+        self.nums, self.sizes, self.skip, self.hold = list(nums), dict(sizes), skip_bits, float(hold_s)
+        self.table = ([(Step(None, "probe", inv=black), sec) for black, sec in self.PRE]
+                      + [(st, self.hold) for st in self.inner.steps]
+                      + [(Step(None, "probe", inv=black), sec) for black, sec in self.POST])
+        self.total = sum(sec for _, sec in self.table)
+        self._ends = []                   # planned end of every entry, seconds after the first picture
+        for _, sec in self.table:
+            self._ends.append((self._ends[-1] if self._ends else 0.0) + sec)
+        self.i = 0
+        self.t0 = None
+        self.shown: list[float] = []      # start time of every table entry, seconds after the first
+        self.done = False
+        self.error = None
+        self.skipped: dict = {}
+
+    @property
+    def step(self):
+        return self.table[self.i][0] if self.i < len(self.table) else None
+
+    @property
+    def progress(self) -> float:
+        return min(1.0, sum(sec for _, sec in self.table[:self.i]) / self.total)
+
+    def eta_s(self) -> float:
+        return self.total * (1.0 - self.progress)
+
+    def presented(self, now: float) -> None:
+        if self.done:
+            return
+        if self.t0 is None:
+            self.t0 = now
+        if len(self.shown) <= self.i:     # the first picture of this entry is on the projectors now
+            self.shown.append(now - self.t0)
+        if now - self.t0 >= self._ends[self.i]:      # by the clock, so small delays do not add up
+            self.i += 1
+            self.done = self.i >= len(self.table)
+
+    def poll(self) -> None:
+        pass
+
+    def record(self) -> dict:
+        """What the decoder needs: which pattern was on the projectors when."""
+        pre, n = len(self.PRE), len(self.inner.steps)
+        return {"nums": self.nums, "sizes": {str(k): list(v) for k, v in self.sizes.items()},
+                "skip_bits": self.skip, "hold_s": self.hold,
+                "flashes": [t for (st, _), t in zip(self.table[:pre], self.shown[:pre]) if not st.inv],
+                "flash_ends": [t for (st, _), t in zip(self.table[1:pre], self.shown[1:pre]) if st.inv],
+                "steps": self.shown[pre:pre + n], "steps_end": self.shown[pre + n],
+                "end_flash": self.shown[pre + n + 1],
+                "made": time.strftime("%Y-%m-%d %H:%M:%S")}
 
 
 def _gray_to_bin(g):
