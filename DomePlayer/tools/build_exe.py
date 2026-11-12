@@ -86,7 +86,6 @@ def main() -> int:
         "--hidden-import", "domeplayer.calib.solve", "--hidden-import", "domeplayer.watchdog", "--hidden-import", "domeplayer.check",
         "--hidden-import", "domeplayer.report", "--hidden-import", "domeplayer.backup", "--hidden-import", "cv2", "--hidden-import", "numpy",
         "--hidden-import", "domeplayer.remote", "--hidden-import", "domeplayer.calib.video",
-        "--hidden-import", "domeplayer.ydome",
         "--exclude-module", "py7zr",
         str(APP_DIR / "tools" / "domeplayer_exe.py"),
     ]
@@ -100,11 +99,6 @@ def main() -> int:
     # .md has no program to open it on a clean Windows: ship the manual as .txt (Notepad)
     (OUT / "คู่มือ-README.txt").write_text((APP_DIR / "README.md").read_text(encoding="utf-8"), encoding="utf-8-sig")
     (OUT / "อ่านก่อน-README.txt").write_text(QUICKSTART.replace("{VERSION}", version), encoding="utf-8-sig")
-    # the old player's repair files (the client's own settings: kept out of the repository)
-    kit = APP_DIR / "ydome-repair"
-    if kit.is_dir():
-        shutil.copytree(kit, OUT / "ydome-repair", dirs_exist_ok=True)
-        print("ydome-repair folder included")
     shutil.rmtree(work, ignore_errors=True)
 
     test = subprocess.run([str(OUT / "DomePlayer.exe"), "--self-test"], cwd=str(OUT))

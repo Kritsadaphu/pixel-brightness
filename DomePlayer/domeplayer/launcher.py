@@ -650,54 +650,6 @@ def main() -> int:
                 pass
         messagebox.showinfo("DomePlayer", f"สร้างไฟล์แล้ว:\n{z}\n\nส่งไฟล์นี้ให้ช่างได้เลย")
 
-    def fix_ydome():
-        """Put good copies of YDome's two settings files back when they are blank (see ydome.py)."""
-        from . import ydome
-        home = ydome.DEFAULT_HOME
-        st = ydome.look(home)
-        if not st["found"]:
-            d = filedialog.askdirectory(parent=root, title="เลือกโฟลเดอร์ YDome (โฟลเดอร์ที่มี dome.proj และโฟลเดอร์ bin)")
-            if not d:
-                return
-            home = Path(d)
-            st = ydome.look(home)
-            if not st["found"]:
-                messagebox.showerror("DomePlayer", f"ไม่พบ YDome.exe ในโฟลเดอร์ย่อยของ\n{home}")
-                return
-        lines = ["dome.proj: " + ("ว่างเปล่า (เสีย)" if st["project_blank"] else "มีข้อมูลอยู่")]
-        lines += [f"{d.name}\\config.xml: " + ("ว่างเปล่า (เสีย)" if b else "มีข้อมูลอยู่")
-                  for d, b in st["config_blank"].items()]
-        broken = st["project_blank"] or any(st["config_blank"].values())
-        if broken:
-            ask = ("พบไฟล์ตั้งค่าของ YDome ว่างเปล่า (สาเหตุที่ YDome เปิดไม่ขึ้น):\n\n" + "\n".join(lines)
-                   + "\n\nใส่ไฟล์ที่กู้ไว้แทนไฟล์ที่ว่างเปล่าไหม?\n"
-                   "- ไฟล์เดิมจะถูกเก็บไว้ในโฟลเดอร์ files-before-repair-… ข้างๆ\n"
-                   "- ไฟล์ใหม่จะถูกตั้งเป็น read-only เพื่อกันพังซ้ำแบบเดิม")
-        else:
-            ask = ("ไฟล์ตั้งค่าของ YDome ไม่ได้ว่างเปล่า:\n\n" + "\n".join(lines)
-                   + "\n\nเขียนทับด้วยค่าที่กู้ไว้ (ค่าปี 2021) ไหม?\nไฟล์เดิมจะถูกเก็บไว้ในโฟลเดอร์ files-before-repair-…")
-        if not messagebox.askyesno("DomePlayer - ซ่อม YDome", ask, default="yes" if broken else "no"):
-            return
-        try:
-            done = ydome.repair(home, force=not broken)
-        except (OSError, RuntimeError) as e:
-            messagebox.showerror("DomePlayer", f"ซ่อมไม่สำเร็จ:\n{e}\n\nถ้า YDome เปิดค้างอยู่ ให้ปิดก่อนแล้วลองใหม่")
-            return
-        both = ""
-        try:
-            if watchdog.autostart_enabled():
-                both = ("\n\n⚠ ตอนนี้ DomePlayer ตั้งให้เปิดเองตอนเปิดเครื่องอยู่ และ YDome ก็มี shortcut เปิดเองของมัน\n"
-                        "ถ้าจะใช้ YDome: เอาติ๊ก 'เปิดเล่นเองทุกครั้งที่เปิดเครื่อง' ของ DomePlayer ออกแล้วกด เล่น 1 ครั้ง\n"
-                        "ถ้าจะใช้ DomePlayer: ลบ shortcut ของ YDome ออกจากโฟลเดอร์ Startup ของ Windows")
-        except OSError:
-            pass
-        messagebox.showinfo(
-            "DomePlayer - ซ่อม YDome",
-            "ใส่ไฟล์แล้ว:\n" + "\n".join(done) + both + "\n\n"
-            "ต่อไป: ปิด DomePlayer (ถ้ากำลังฉายอยู่) แล้วเปิด YDome จาก shortcut เดิมบน Desktop\n"
-            "เปิดได้ทีละโปรแกรม อย่าเปิด DomePlayer กับ YDome พร้อมกัน\n\n"
-            "ถ้า YDome เปิดขึ้นแต่ภาพจากกลางโดมถึงขอบดูยืดหรือหดผิดปกติ: ดูไฟล์ อ่านก่อน.txt ในโฟลเดอร์ ydome-repair")
-
     tool_buttons = [
         ttk.Button(tools, text="แผงควบคุม", command=open_panel),
         ttk.Button(tools, text="ตรวจความพร้อม", command=check),
@@ -707,13 +659,6 @@ def main() -> int:
     for i, b in enumerate(tool_buttons):
         b.grid(row=0, column=i, sticky="we", padx=(0 if i == 0 else 6, 0), ipady=3)
         tools.columnconfigure(i, weight=1)
-    try:
-        from . import ydome
-        if ydome.kit_ready():        # only where the repair files were delivered with the program
-            ttk.Button(tools, text="ซ่อม YDome (โปรแกรมเดิมของห้อง)…", command=fix_ydome).grid(
-                row=1, column=0, columnspan=len(tool_buttons), sticky="we", pady=(6, 0), ipady=2)
-    except Exception:  # noqa: BLE001 - never a reason for the start window not to open
-        pass
 
     root.bind("<Return>", lambda _e: play())
     root.mainloop()

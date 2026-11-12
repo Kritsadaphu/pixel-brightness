@@ -4,7 +4,8 @@ What was found on the show PC (2026-11): YDome writes config.xml and dome.proj w
 closed. If the power goes within seconds of that, Windows leaves both files at the right
 length but filled with zero bytes. A blank config.xml makes YDome end at once, before its
 first log line - which is all it has done since. Good copies are kept in the folder
-"ydome-repair" next to DomePlayer:
+"YDome-Fix", next to the small program YDome-Fix.exe
+(tools/ydome_fix.py - separate from DomePlayer, which has nothing to do with it):
     dome.proj    the saved 2021 project ("dome - Final Final.proj")
     config.xml   rebuilt from the program and the project (same length as the lost file)
 
@@ -22,7 +23,7 @@ from pathlib import Path
 
 from .config import APP_DIR
 
-KIT = APP_DIR / "ydome-repair"
+KIT = APP_DIR / "ydome-repair"          # YDome-Fix.exe sets this to its own folder
 DEFAULT_HOME = Path("C:/YDome")
 
 
