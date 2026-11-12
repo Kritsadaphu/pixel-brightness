@@ -82,6 +82,63 @@ def _norm_blur(np, cv2, img, mask, sigma):
     return np.where(den > 1e-4, num / np.maximum(den, 1e-4), 0)
 
 
+LENS_TYPES = ("action", "equidistant")
+
+
+def _lens_ray(np, dome: dict, cam_size):
+    """ray(x, y) -> unit view directions for pixels of the worked-on camera picture, or None when
+    the lens is not known.
+
+    lens_type "action" (Insta360 Ace Pro 2 and other action cameras: stereographic picture,
+    r = 2 f tan(angle / 2)) or "equidistant" (r = f * angle); lens_view_deg = the angle the
+    camera sees across the SHORT side of its full picture (wall test: 2.7 m wide from 1 m =
+    107 degrees). The worked-on picture may be a cut-out of the full frame (video: "frame")."""
+    kind = dome.get("lens_type")
+    view = np.radians(float(dome.get("lens_view_deg") or 0))
+    if kind not in LENS_TYPES or not 0.2 < view < 3.3:
+        return None
+    wcam, hcam = cam_size
+    frame = dome.get("frame") or {}
+    fw, fh = frame.get("size") or (wcam, hcam)
+    x0, y0, x1, y1 = frame.get("crop") or (0, 0, fw, fh)
+    sx, sy = (x1 - x0) / wcam, (y1 - y0) / hcam
+    half = min(fw, fh) / 2.0
+    f = half / (2 * np.tan(view / 4)) if kind == "action" else half / (view / 2)
+
+    def ray(x, y):
+        X = x0 + np.asarray(x, np.float64) * sx - fw / 2.0
+        Y = y0 + np.asarray(y, np.float64) * sy - fh / 2.0
+        r = np.hypot(X, Y)
+        th = 2 * np.arctan(r / (2 * f)) if kind == "action" else r / f
+        th = np.minimum(th, np.pi * 0.95)
+        psi = np.arctan2(Y, X)
+        return np.stack([np.sin(th) * np.cos(psi), np.sin(th) * np.sin(psi), np.cos(th)], -1)
+    return ray
+
+
+def _on_dome(np, th, th_edge, dome: dict):
+    """View angle from the dome axis -> Domemaster radius (1 = dome edge), for a camera on the axis.
+
+    With the dome's shape (diameter and height of the cap, as YDome had them: 4.847 m / 0.778 m)
+    the ray is followed to the dome surface, and the radius is the distance from the zenith
+    ALONG the surface - the way YDome put the video on this dome (its "linear" fisheye map).
+    How far the camera is below the dome follows from where it sees the edge. Without the
+    shape: view angle / edge angle."""
+    a = float(dome.get("dome_diameter_m") or 0) / 2.0
+    h = float(dome.get("dome_height_m") or 0)
+    if a <= 0 or h <= 0 or h > a:
+        return th / np.maximum(th_edge, 1e-6)
+    Rs = (a * a + h * h) / (2 * h)            # sphere radius
+    cz = Rs - h                               # sphere centre below the rim plane
+    te = np.clip(th_edge, 0.05, 1.5)
+    d = a / np.tan(te)                        # camera below the rim plane
+    k = cz - d
+    c = np.cos(th)
+    t = -c * k + np.sqrt(np.maximum(c * c * k * k - k * k + Rs * Rs, 0.0))
+    s, z = t * np.sin(th), t * c - d
+    return np.arctan2(s, z + cz) / np.arcsin(a / Rs)
+
+
 def dome_to_video(np, xs, ys, cam_size, dome: dict):
     """Camera pixels -> Domemaster square position (0..1, y down) and radius (1 = dome edge)."""
     wcam, hcam = cam_size
@@ -90,7 +147,13 @@ def dome_to_video(np, xs, ys, cam_size, dome: dict):
     rho = np.hypot(dx, dy)
     ang = np.arctan2(dy, dx)
     f = float(dome.get("lens_mm", 0)) / float(dome.get("sensor_width_mm", 22.3)) * wcam
-    if f > 0:
+    known = _lens_ray(np, dome, cam_size)
+    if known is not None:
+        axis = known(cx, cy)
+        th = np.arccos(np.clip(known(xs, ys) @ axis, -1, 1))
+        th_edge = np.arccos(np.clip(known(cx + R * np.cos(ang), cy + R * np.sin(ang)) @ axis, -1, 1))
+        rr = _on_dome(np, th, th_edge, dome)
+    elif f > 0:
         # view angle away from the ray toward the dome centre (lens centre = picture centre)
         def ray(x, y):
             x = np.asarray(x, np.float64)
@@ -155,7 +218,8 @@ def solve(data: dict, ref: int | None, progress=None, dome: dict | None = None) 
             union = _fill_holes(np, cv2, union)
             union = cv2.morphologyEx(union.astype(np.uint8), cv2.MORPH_OPEN, np.ones((9, 9), np.uint8))
             circle = find_circle(np, cv2, union)
-        dome = dict(dome, circle_px=circle)
+        dome = dict(dome, circle_px=circle,
+                    frame={"size": (data.get("video") or {}).get("size"), "crop": data.get("crop")})
         out.update(mode="dome", circle=[circle[0] / wcam, circle[1] / hcam, circle[2] / hcam],
                    front_deg=float(dome.get("front_deg", 0)))
         svx, svy, srr = dome_to_video(np, xs.astype(np.float64), ys.astype(np.float64), (wcam, hcam), dome)

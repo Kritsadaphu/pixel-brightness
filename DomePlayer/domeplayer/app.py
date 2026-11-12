@@ -869,6 +869,7 @@ class DomePlayer:
         self.cfg["calibration"]["lens_mm"] = float(mm)
         try:
             save_setting(self.cfg["_config_path"], "calibration", "lens_mm", float(mm))
+            save_setting(self.cfg["_config_path"], "calibration", "lens_type", self.cfg["calibration"]["lens_type"])
         except (OSError, ValueError) as e:
             self.say(f"could not save config.json: {e}", 6)
             return
@@ -883,6 +884,13 @@ class DomePlayer:
         if data is not None:
             self.say("camera lens type changed - recalculating from the last camera pictures ...", 5)
             self._start_solve(self._capture_for_today(data))
+
+    def set_lens_type(self, kind: str) -> None:
+        """"action" (Ace Pro 2) / "equidistant" / "none". Recalculates from the last pictures."""
+        if kind not in ("action", "equidistant", "none"):
+            return
+        self.cfg["calibration"]["lens_type"] = kind
+        self.set_lens(0.0)
 
     def _after_capture(self) -> None:
         ses, self.session = self.session, None
@@ -918,7 +926,12 @@ class DomePlayer:
         dome = None
         if self.cal_mode == "dome":
             dome = {"circle": list(self.circle), "front_deg": self.front_deg,
-                    "lens_mm": cc["lens_mm"], "sensor_width_mm": cc["sensor_width_mm"]}
+                    "lens_mm": cc["lens_mm"], "sensor_width_mm": cc["sensor_width_mm"],
+                    "lens_type": cc["lens_type"], "lens_view_deg": cc["lens_view_deg"],
+                    "dome_diameter_m": cc["dome_diameter_m"], "dome_height_m": cc["dome_height_m"]}
+            log.info("camera lens: %s%s, dome shape: %s",
+                     cc["lens_type"], f" {cc['lens_view_deg']:g} deg across the short side" if cc["lens_type"] != "none" else "",
+                     f"{cc['dome_diameter_m']:g} m wide, {cc['dome_height_m']:g} m high" if cc["dome_diameter_m"] else "unknown")
         job = {"progress": 0.0, "result": None, "error": None, "reading": source is not None,
                "old_circle": bool(save_raw and dome is not None and self.circle[2] > 0)}
 
@@ -952,6 +965,8 @@ class DomePlayer:
                     "monitors": self.nums, "camera": self.cam_index,
                     "skipped": list(data.get("skipped") or []), "video": data.get("video"),
                     "crop": data.get("crop"), "lens_mm": cc["lens_mm"],
+                    "lens_type": cc["lens_type"], "lens_view_deg": cc["lens_view_deg"],
+                    "dome_diameter_m": cc["dome_diameter_m"], "dome_height_m": cc["dome_height_m"],
                     "ports": {str(n): self.ports[n] for n in self.nums if n in self.ports}})
                 job["result"] = solve.load(self.cal_folder)
             except Exception as e:  # noqa: BLE001
@@ -1362,6 +1377,7 @@ class DomePlayer:
             d["state"] = "show"
         d["show_done"] = getattr(self, "_show_done", None)
         d["lens_mm"] = self.cfg["calibration"]["lens_mm"]
+        d["lens_type"] = self.cfg["calibration"]["lens_type"]
         return d
 
     def _run_command(self, cmd: str) -> None:
@@ -1388,6 +1404,8 @@ class DomePlayer:
                 self.show_still()
         elif parts[0] == "lens" and len(parts) >= 2:
             self.set_lens(float(parts[1]))
+        elif parts[0] == "lenstype" and len(parts) >= 2:
+            self.set_lens_type(parts[1])
         elif parts[0] == "key" and len(parts) >= 2:
             code = key_code(g, parts[1])
             if code is not None:

@@ -73,6 +73,29 @@ def _monitors() -> list[tuple[int, str]]:
         return []
 
 
+LENS_KINDS = ["action", "equidistant", "none"]
+VIDEO_TYPES = (".mp4", ".insv", ".mov", ".lrv")
+
+
+def newest_recording(roots=None) -> Path | None:
+    """The newest video in a DCIM folder of a camera / memory card (any drive but C:)."""
+    if roots is None:
+        roots = [Path(f"{c}:/DCIM") for c in "DEFGHIJKLMNOPQRSTUVWXYZ"] if os.name == "nt" else []
+    best, when = None, 0.0
+    for r in roots:
+        try:
+            if not r.is_dir():
+                continue
+            for f in r.rglob("*"):
+                if f.suffix.lower() in VIDEO_TYPES and f.suffix.lower() != ".lrv" and f.is_file():
+                    m = f.stat().st_mtime
+                    if m > when:
+                        best, when = f, m
+        except OSError:
+            continue
+    return best
+
+
 def thai_reason(text: str) -> str:
     """The player's (English) reason why a calibration stopped, as advice in Thai."""
     t = (text or "").lower()
@@ -349,7 +372,8 @@ def main() -> int:
             if messagebox.askyesno(
                     "DomePlayer", "ฉายลายให้กล้องอัดวิดีโอ?\n\n"
                     "ทำตามลำดับ:\n1. วางกล้องกลางห้อง เลนส์หันขึ้นโดม ปิดไฟห้อง\n"
-                    "2. ตั้งกล้องเป็นโหมดวิดีโอ ล็อกค่าแสงแบบ Manual\n"
+                    "2. Ace Pro 2: FreeFrame Video, 4K 4:3, มุมกว้างสุด, ปิดกันสั่น, ค่าแสง Manual\n"
+                    "   (ดูในจอกล้องว่าเห็นขอบโดมครบทั้งวง)\n"
                     "3. กดอัดวิดีโอที่กล้อง แล้วออกห่างจากกล้อง\n4. กด Yes ที่นี่\n\n"
                     "ลายจะฉาย 3 นาทีกว่า (เริ่มและจบด้วยแสงขาวกะพริบ) จบแล้วค่อยหยุดอัด", parent=win):
                 remote.send("show")
@@ -361,21 +385,49 @@ def main() -> int:
             if f:
                 remote.send("video " + f)
 
-        vf = box("calibrate ด้วยกล้องที่อัดวิดีโอ (Insta360 / กล้อง 360 / มือถือ) - ใช้เมื่อกล้อง USB เห็นโดมไม่ครบ", 7)
-        buttons(vf, [("1) ฉายลายให้กล้องอัด", show_patterns), ("2) เลือกไฟล์วิดีโอ…", pick_video),
-                     ("ดูภาพจากวิดีโอ (ไว้ปรับวงกลม)", lambda: remote.send("still"))])
+        def from_camera():
+            """The newest video on the camera (plugged in by USB as a drive, or its card in a reader)."""
+            since = (remote.read_status() or {}).get("show_done") or 0
+            f = newest_recording()
+            if f is None:
+                messagebox.showinfo(
+                    "DomePlayer", "ไม่พบกล้องหรือการ์ดของกล้อง\n\n"
+                    "เสียบ Ace Pro 2 ด้วยสาย USB แล้วเลือก U-Disk / File Transfer ที่จอกล้อง\n"
+                    "(หรือถอดการ์ด microSD มาเสียบเครื่องนี้) แล้วกดปุ่มนี้อีกครั้ง\n\n"
+                    "หรือกด 'เลือกไฟล์เอง…'", parent=win)
+                return
+            st_ = f.stat()
+            old = ("\n\n⚠ ไฟล์นี้ถูกอัดก่อนการฉายลายรอบล่าสุด อาจไม่ใช่ไฟล์ที่ต้องการ"
+                   if since and st_.st_mtime < since - 30 else "")
+            if messagebox.askyesno(
+                    "DomePlayer", f"ใช้ไฟล์ล่าสุดในกล้อง?\n\n{f}\n"
+                    f"อัดเมื่อ {time.strftime('%d/%m %H:%M', time.localtime(st_.st_mtime))}   "
+                    f"ขนาด {st_.st_size / 1e6:.0f} MB{old}\n\n"
+                    "ห้ามถอดสายกล้องจนกว่าจะอ่านเสร็จ", parent=win):
+                remote.send("video " + str(f))
+
+        vf = box("calibrate ด้วย Insta360 Ace Pro 2 (อัดวิดีโอ แล้วให้โปรแกรมอ่านไฟล์จากกล้อง)", 4)
+        buttons(vf, [("1) ฉายลายให้กล้องอัด", show_patterns), ("2) อ่านไฟล์ล่าสุดจากกล้อง", from_camera),
+                     ("เลือกไฟล์เอง…", pick_video), ("3) ดูภาพจากวิดีโอ (ปรับวงกลม)", lambda: remote.send("still")),
+                     ("ยกเลิก", lambda: remote.send("cancel"))])
         lens = tk.StringVar(value="")
-        ttk.Label(vf, text="   เลนส์กล้อง:").grid(row=0, column=3)
-        lens_box = ttk.Combobox(vf, textvariable=lens, state="readonly", width=24,
-                                values=["ฟิชอาย / กล้อง 360", "เลนส์ปกติ (R50 10 mm)"])
-        lens_box.grid(row=0, column=4, padx=4)
-        lens_box.bind("<<ComboboxSelected>>", lambda _e: remote.send("lens 0" if lens_box.current() == 0 else "lens 10"))
+        ttk.Label(vf, text=" เลนส์:").grid(row=0, column=5)
+        lens_box = ttk.Combobox(vf, textvariable=lens, state="readonly", width=20,
+                                values=["Ace Pro 2 (กล้องแอ็กชัน)", "ฟิชอายธรรมดา", "ไม่แก้เลนส์ (กล้อง 360)"])
+        lens_box.grid(row=0, column=6, padx=4)
+        lens_box.bind("<<ComboboxSelected>>",
+                      lambda _e: remote.send("lenstype " + LENS_KINDS[lens_box.current()]))
         state["lens_box"] = lens_box
 
-        buttons(box("calibrate ด้วยกล้อง USB (ภาพสด)", 4), [
-            ("เปิด / ปิดภาพกล้อง (C)", key("C")), ("กล้องตัวถัดไป", key("RIGHT_BRACKET")),
-            ("กล้องตัวก่อนหน้า", key("LEFT_BRACKET")), ("▶ เริ่ม calibrate", calibrate),
-            ("ยกเลิก calibrate", lambda: remote.send("cancel"))])
+        try:
+            usb = bool(load_config()["calibration"].get("usb_camera"))
+        except Exception:  # noqa: BLE001
+            usb = False
+        if usb:
+            buttons(box("calibrate ด้วยกล้อง USB (ภาพสด)", 7), [
+                ("เปิด / ปิดภาพกล้อง (C)", key("C")), ("กล้องตัวถัดไป", key("RIGHT_BRACKET")),
+                ("กล้องตัวก่อนหน้า", key("LEFT_BRACKET")), ("▶ เริ่ม calibrate", calibrate),
+                ("ยกเลิก calibrate", lambda: remote.send("cancel"))])
 
         big_step = tk.BooleanVar(value=False)
 
@@ -454,10 +506,10 @@ def main() -> int:
                     lines.append("วงกลมโดมถูกแก้แล้วแต่ยังไม่ได้บันทึก กด 'บันทึกวงกลม'")
             if st.get("show_done") and not (st.get("result") or {}).get("at", 0) > st["show_done"]:
                 lines.append("ฉายลายจบแล้วเมื่อ " + time.strftime("%H:%M", time.localtime(st["show_done"]))
-                             + ": หยุดอัดที่กล้อง ก๊อปไฟล์วิดีโอมาไว้ในเครื่องนี้ แล้วกด '2) เลือกไฟล์วิดีโอ…'")
+                             + ": หยุดอัดที่กล้อง เสียบกล้องเข้าเครื่องนี้ด้วย USB (เลือก U-Disk) แล้วกด '2) อ่านไฟล์ล่าสุดจากกล้อง'")
             box_ = state.get("lens_box")
-            if box_ is not None and st.get("lens_mm") is not None:      # show what the player uses
-                want = 0 if float(st["lens_mm"]) <= 0 else 1
+            if box_ is not None and st.get("lens_type") in LENS_KINDS:      # show what the player uses
+                want = LENS_KINDS.index(st["lens_type"])
                 if box_.current() != want:
                     box_.current(want)
             res = st.get("result")

@@ -73,7 +73,12 @@
     ],
     "dome_front_deg": 0.0,
     "lens_mm": 0.0,
-    "sensor_width_mm": 22.3
+    "sensor_width_mm": 22.3,
+    "lens_type": "action",
+    "lens_view_deg": 107.0,
+    "dome_diameter_m": 4.847,
+    "dome_height_m": 0.778,
+    "usb_camera": false
   },
   "mask": {
     "enabled": true,

@@ -113,7 +113,18 @@ DEFAULTS: dict = {
         # picture width, height, height. [0, 0, 0] = find it from the projected light.
         "dome_circle": [0, 0, 0],
         "dome_front_deg": 0.0,   # turns the video around the dome (which side is "front")
-        "lens_mm": 10.0,         # camera lens focal length (R50 + 10-18 mm at 10); 0 = no lens correction
+        "lens_mm": 0.0,          # a normal lens on a USB camera: focal length (R50 at 10 mm = 10); 0 = not used
+        # the recording camera's lens: "action" = Insta360 Ace Pro 2 / action camera,
+        # "equidistant" = plain fisheye, "none" = no lens correction (360 camera, unknown lens)
+        "lens_type": "action",
+        # angle seen across the SHORT side of the full camera picture. Ace Pro 2, FreeFrame Video
+        # 4K 4:3, stabilization off: 2.7 m wide from 1 m away = 107 degrees (measured 2026-11-12)
+        "lens_view_deg": 107.0,
+        # shape of the dome (from the room's old player YDome): rim diameter and height of the
+        # cap in metres. 0 = unknown (the picture is then spread evenly over the view angle)
+        "dome_diameter_m": 4.847,
+        "dome_height_m": 0.778,
+        "usb_camera": False,     # true = also offer calibration with a live USB camera
         "sensor_width_mm": 22.3, # R50 sensor width
     },
     # Black outside a circle of the video (Domemaster circle = radius 1.0). Smaller radius
@@ -250,6 +261,10 @@ def load_config(path: Path | None = None) -> dict:
     for k in ("dome_front_deg", "lens_mm", "sensor_width_mm"):
         _check(isinstance(cc[k], (int, float)), f"calibration.{k} must be a number")
     _check(cc["lens_mm"] >= 0 and cc["sensor_width_mm"] > 0, "calibration.lens_mm must be 0 or more")
+    _check(cc["lens_type"] in ("action", "equidistant", "none"),
+           'calibration.lens_type must be "action", "equidistant" or "none"')
+    for k in ("lens_view_deg", "dome_diameter_m", "dome_height_m"):
+        _check(isinstance(cc[k], (int, float)) and cc[k] >= 0, f"calibration.{k} must be a number, 0 or more")
     mk = cfg["mask"]
     _check(isinstance(mk["radius"], (int, float)) and 0 < mk["radius"] <= 2, "mask.radius must be 0.0-2.0")
     _check(isinstance(mk["feather"], (int, float)) and 0 <= mk["feather"] <= 1, "mask.feather must be 0.0-1.0")

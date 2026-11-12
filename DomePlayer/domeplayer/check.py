@@ -349,6 +349,9 @@ def check_video(rep: Report, cfg: dict) -> None:
 
 
 def check_camera(rep: Report, cfg: dict) -> None:
+    if not cfg["calibration"].get("usb_camera"):
+        rep.add(OK, "กล้อง calibrate: Insta360 Ace Pro 2 (อัดวิดีโอแล้วให้โปรแกรมอ่านไฟล์) ไม่ต้องต่อกล้องกับเครื่องนี้ตอนฉายลาย")
+        return
     import cv2
     import numpy as np
     want = int(cfg["calibration"]["camera"])
