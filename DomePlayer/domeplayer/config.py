@@ -125,6 +125,10 @@ DEFAULTS: dict = {
         "dome_diameter_m": 4.847,
         "dome_height_m": 0.778,
         "usb_camera": False,     # true = also offer calibration with a live USB camera
+        # fine tuning of the result, changed live from the control panel:
+        "blend_gamma": 2.2,      # the projectors' gamma: lower = overlaps darker, higher = overlaps brighter
+        "black_level": 1.0,      # black level compensation: 0 = off, 1 = as measured, up to 3
+        "color_match": 1.0,      # colour matching between projectors: 0 = off ... 1 = full
         "sensor_width_mm": 22.3, # R50 sensor width
     },
     # Black outside a circle of the video (Domemaster circle = radius 1.0). Smaller radius
@@ -261,6 +265,12 @@ def load_config(path: Path | None = None) -> dict:
     for k in ("dome_front_deg", "lens_mm", "sensor_width_mm"):
         _check(isinstance(cc[k], (int, float)), f"calibration.{k} must be a number")
     _check(cc["lens_mm"] >= 0 and cc["sensor_width_mm"] > 0, "calibration.lens_mm must be 0 or more")
+    _check(isinstance(cc["blend_gamma"], (int, float)) and 1.0 <= cc["blend_gamma"] <= 4.0,
+           "calibration.blend_gamma must be 1.0-4.0")
+    _check(isinstance(cc["black_level"], (int, float)) and 0 <= cc["black_level"] <= 3,
+           "calibration.black_level must be 0-3")
+    _check(isinstance(cc["color_match"], (int, float)) and 0 <= cc["color_match"] <= 1,
+           "calibration.color_match must be 0-1")
     _check(cc["lens_type"] in ("action", "equidistant", "none"),
            'calibration.lens_type must be "action", "equidistant" or "none"')
     for k in ("lens_view_deg", "dome_diameter_m", "dome_height_m"):

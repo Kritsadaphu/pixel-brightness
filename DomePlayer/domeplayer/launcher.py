@@ -441,6 +441,18 @@ def main() -> int:
                      ("หาเอง", key("A")), ("บันทึกวงกลม", lambda: remote.send("key S ctrl"))])
         ttk.Checkbutton(cf, text="ทีละ 10", variable=big_step).grid(row=0, column=10, padx=6)
 
+        def tune(what, step=""):
+            return lambda: remote.send(f"tune {what} {step}".strip())
+
+        tf = box("ไล่แสงและสี (ปรับสดขณะดูโดม: กด 'ตาราง / ขาว / วิดีโอ' ให้เป็นขาวก่อน)", 6)
+        buttons(tf, [("รอยต่อมืดลง", tune("gamma", "-0.05")), ("รอยต่อสว่างขึ้น", tune("gamma", "+0.05")),
+                     ("ชดเชยดำ −", tune("black", "-0.25")), ("ชดเชยดำ +", tune("black", "+0.25")),
+                     ("จับคู่สี −", tune("color", "-0.25")), ("จับคู่สี +", tune("color", "+0.25")),
+                     ("คืนค่าเดิม", tune("reset"))])
+        tune_text = tk.StringVar(value="")
+        ttk.Label(tf, textvariable=tune_text).grid(row=1, column=0, columnspan=7, sticky="w", pady=(4, 0))
+        state["tune_text"] = tune_text
+
         def stop_show():
             if messagebox.askyesno("DomePlayer", "ปิดการฉายตอนนี้เลยไหม?", parent=win):
                 head.set("กำลังปิดตัวเล่น…")
@@ -507,6 +519,13 @@ def main() -> int:
             if st.get("show_done") and not (st.get("result") or {}).get("at", 0) > st["show_done"]:
                 lines.append("ฉายลายจบแล้วเมื่อ " + time.strftime("%H:%M", time.localtime(st["show_done"]))
                              + ": หยุดอัดที่กล้อง เสียบกล้องเข้าเครื่องนี้ด้วย USB (เลือก U-Disk) แล้วกด '2) อ่านไฟล์ล่าสุดจากกล้อง'")
+            tn = st.get("tune")
+            if tn and state.get("tune_text") is not None:
+                state["tune_text"].set(
+                    f"gamma รอยต่อ {tn['gamma']:.2f}     ชดเชยดำ {tn['black']:.2f}"
+                    + ("" if tn.get("has_black") else " (ผล calibrate นี้ไม่มีข้อมูลระดับดำ)")
+                    + f"     จับคู่สี {tn['color']:.2f}"
+                    + ("" if tn.get("has_color") else " (ผล calibrate นี้ไม่มีข้อมูลสี)"))
             box_ = state.get("lens_box")
             if box_ is not None and st.get("lens_type") in LENS_KINDS:      # show what the player uses
                 want = LENS_KINDS.index(st["lens_type"])

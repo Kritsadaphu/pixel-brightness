@@ -57,8 +57,11 @@ uniform float u_sweep;   // 0..1, advances every display refresh (sync check)
 uniform bool      u_use_mesh;    // output pixel -> reference output position (stacking)
 uniform sampler2D u_mesh;
 uniform vec2      u_mesh_size;
-uniform bool      u_use_gainmap; // per-pixel brightness (signal multiplier)
+uniform bool      u_use_gainmap; // per-pixel: r = brightness (signal multiplier, gamma 2.2), g = light to add (black level)
 uniform sampler2D u_gainmap;
+uniform float u_blend_gamma;     // gamma of the projectors
+uniform float u_black;           // strength of the black level compensation
+uniform vec3  u_color;           // light factors r g b of this projector (colour matching)
 uniform int   u_pattern;         // 0 = none, 1 = white, 2 = Gray-code stripes, 3 = black
 uniform int   u_axis;
 uniform int   u_bit;
@@ -105,7 +108,7 @@ void main() {
         }
         base = m;
     }
-    float gm = u_use_gainmap ? texture(u_gainmap, o).r : 1.0;
+    vec2 gm = u_use_gainmap ? texture(u_gainmap, o).rg : vec2(1.0, 0.0);
     vec3 q = u_hinv * vec3(base, 1.0);
     vec2 s = q.xy / q.z;
     if (q.z <= 0.0 || any(lessThan(s, vec2(0.0))) || any(greaterThan(s, vec2(1.0)))) {
@@ -141,7 +144,15 @@ void main() {
         float d = length(p - u_mask_c);
         col *= 1.0 - smoothstep(u_mask_r - max(u_mask_feather, 1e-4), u_mask_r, d);
     }
-    f_color = vec4(clamp(col * u_gain * gm, 0.0, 1.0), 1.0);
+    vec3 sig = clamp(col * u_gain, 0.0, 1.0);
+    if (u_use_gainmap) {
+        // work in light: dim for the blend, tint for the colour match, lift for the black level
+        vec3 light = pow(sig, vec3(u_blend_gamma)) * pow(max(gm.r, 0.0), 2.2) * u_color;
+        float b = clamp(gm.g * u_black, 0.0, 0.5);
+        light = b + (1.0 - b) * light;
+        sig = pow(light, vec3(1.0 / u_blend_gamma));
+    }
+    f_color = vec4(clamp(sig, 0.0, 1.0), 1.0);
 }
 """
 
@@ -885,6 +896,34 @@ class DomePlayer:
             self.say("camera lens type changed - recalculating from the last camera pictures ...", 5)
             self._start_solve(self._capture_for_today(data))
 
+    TUNE = {"gamma": ("blend_gamma", 1.0, 4.0, 2.2), "black": ("black_level", 0.0, 3.0, 1.0),
+            "color": ("color_match", 0.0, 1.0, 1.0)}
+
+    def tune(self, what: str, step: str) -> None:
+        """Live fine tuning from the control panel: "gamma -0.05", "black +0.25", "color 0", "reset"."""
+        cc = self.cfg["calibration"]
+        todo = list(self.TUNE) if what == "reset" else [what]
+        for name in todo:
+            if name not in self.TUNE:
+                return
+            key, lo, hi, default = self.TUNE[name]
+            try:
+                if what == "reset":
+                    v = default
+                elif step[:1] in "+-":
+                    v = float(cc[key]) + float(step)
+                else:
+                    v = float(step)
+            except ValueError:
+                return
+            cc[key] = round(min(hi, max(lo, v)), 3)
+            try:
+                save_setting(self.cfg["_config_path"], "calibration", key, cc[key])
+            except (OSError, ValueError) as e:
+                self.say(f"could not save config.json: {e}", 6)
+        self.say(f"blend gamma {cc['blend_gamma']:.2f}   black level {cc['black_level']:.2f}   "
+                 f"colour match {cc['color_match']:.2f}", 3)
+
     def set_lens_type(self, kind: str) -> None:
         """"action" (Ace Pro 2) / "equidistant" / "none". Recalculates from the last pictures."""
         if kind not in ("action", "equidistant", "none"):
@@ -1042,8 +1081,15 @@ class DomePlayer:
                 self.messages.append(msg)
                 continue
             t = {}
-            g = np.ascontiguousarray(o["gain"], np.float32)
-            t["gain"] = self.ctx.texture((g.shape[1], g.shape[0]), 1, g.tobytes(), dtype="f4")
+            g = np.asarray(o["gain"], np.float32)
+            b = o.get("black")
+            if b is None or b.shape != g.shape:
+                b = np.zeros_like(g)
+            g = np.ascontiguousarray(np.stack([g, np.asarray(b, np.float32)], -1))
+            t["gain"] = self.ctx.texture((g.shape[1], g.shape[0]), 2, g.tobytes(), dtype="f4")
+            t["has_black"] = bool(o.get("black") is not None)
+            t["colour"] = tuple(float(v) for v in (o.get("colour") or (1.0, 1.0, 1.0)))
+            t["has_colour"] = bool(o.get("colour"))
             if o["mesh"] is not None:
                 m = np.nan_to_num(o["mesh"], nan=-10.0).astype(np.float32)
                 t["mesh"] = self.ctx.texture((m.shape[1], m.shape[0]), 2, np.ascontiguousarray(m).tobytes(), dtype="f4")
@@ -1378,6 +1424,11 @@ class DomePlayer:
         d["show_done"] = getattr(self, "_show_done", None)
         d["lens_mm"] = self.cfg["calibration"]["lens_mm"]
         d["lens_type"] = self.cfg["calibration"]["lens_type"]
+        cc = self.cfg["calibration"]
+        tex = (self.cal or {}).get("tex") or {}
+        d["tune"] = {"gamma": cc["blend_gamma"], "black": cc["black_level"], "color": cc["color_match"],
+                     "has_black": any(t.get("has_black") for t in tex.values()),
+                     "has_color": any(t.get("has_colour") for t in tex.values())}
         return d
 
     def _run_command(self, cmd: str) -> None:
@@ -1388,6 +1439,8 @@ class DomePlayer:
         if parts[0] == "calibrate":
             self._k_armed = time.perf_counter() + 4.0      # the panel already asked "are you sure"
             self._handle_key(g.KEY_K, g.PRESS, 0)
+        elif parts[0] == "tune" and len(parts) >= 2:
+            self.tune(parts[1], parts[2] if len(parts) > 2 else "")
         elif parts[0] == "cancel":
             if self.session is not None:
                 self._handle_key(g.KEY_ESCAPE, g.PRESS, 0)
@@ -1685,6 +1738,10 @@ class DomePlayer:
             "u_mesh_size": cal["mesh_size"] if use_mesh else (2.0, 2.0),
             "u_use_gainmap": cal is not None,
             "u_gainmap": 2,
+            "u_blend_gamma": float(self.cfg["calibration"]["blend_gamma"]),
+            "u_black": float(self.cfg["calibration"]["black_level"]),
+            "u_color": tuple(v ** float(self.cfg["calibration"]["color_match"])
+                             for v in (cal["colour"] if cal is not None else (1.0, 1.0, 1.0))),
             "u_hinv": hinv,
             "u_flip": (-1.0 if p["flip_x"] else 1.0, -1.0 if p["flip_y"] else 1.0),
             "u_rot": math.radians(float(p["rotate_deg"])),

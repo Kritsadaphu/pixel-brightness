@@ -15,6 +15,15 @@ Brightness: in camera space, S = sum of every projector's light. The target T is
 surface at or below S everywhere (so it is reachable) and each projector is dimmed by
 a_i = T * w_i / sum_j(w_j * L_j), where w_i fades to 0 at the projector's own edge so its
 border does not show. Dimming is converted to a signal multiplier with gamma 2.2.
+
+Colour: the camera's colour picture of every projector's white gives its tint. Each projector
+gets three factors (red, green, blue light, never above 1) that bring all whites to one
+common tint.
+
+Black level: a projector showing black still gives a little light, so where pictures overlap
+black is brighter. From the all-black picture: how much brighter than the room each spot is,
+and each projector gets a map of light to ADD so that black is equally bright everywhere
+(up to the level of the brightest overlap).
 """
 from __future__ import annotations
 
@@ -137,6 +146,59 @@ def _on_dome(np, th, th_edge, dome: dict):
     t = -c * k + np.sqrt(np.maximum(c * c * k * k - k * k + Rs * Rs, 0.0))
     s, z = t * np.sin(th), t * c - d
     return np.arctan2(s, z + cz) / np.arcsin(a / Rs)
+
+
+LUMA = (0.299, 0.587, 0.114)      # r g b, as the grey camera picture is made
+
+
+def match_colour(np, rgbs: dict) -> dict:
+    """{num: [r, g, b] white as the camera saw it} -> {num: (factors r g b, light kept)}.
+    The common tint is the middle (geometric mean) of all; nobody is made brighter."""
+    ok = {n: np.asarray(v, np.float64) for n, v in rgbs.items()
+          if v is not None and len(v) == 3 and min(v) > 0}
+    if len(ok) < 2:
+        return {}
+    chroma = {n: v / v.mean() for n, v in ok.items()}
+    target = np.exp(np.mean([np.log(c) for c in chroma.values()], axis=0))
+    out = {}
+    luma = np.asarray(LUMA)
+    for n, c in chroma.items():
+        k = target / c
+        k = np.clip(k / k.max(), 0.6, 1.0)        # a bigger difference than this is a measuring error
+        out[n] = (k, float((luma * ok[n] * k).sum() / (luma * ok[n]).sum()))
+    return out
+
+
+def black_offsets(np, cv2, blk, L, W, region, sigma):
+    """Light each projector must add (as a part of its own full white) so that black is equally
+    bright over the dome. blk = all-black camera picture (linear), L = white light per projector,
+    W = blend weights. Returns ({num: map}, info); maps are None when the camera cannot see
+    the projectors' black light."""
+    nums = list(L)
+    S = sum(L.values())
+    info = {"black_seen": False}
+    if int(region.sum()) < 200:
+        return None, info
+    x, y = S[region].astype(np.float64), blk[region].astype(np.float64)
+    if x.std() < 1e-9 or y.std() < 1e-12:
+        return None, info
+    beta, k0 = np.polyfit(x, y, 1)                 # black = room + beta * white
+    r = float(np.corrcoef(x, y)[0, 1])
+    info.update(black_part_of_white=float(beta), black_fit=round(r, 3))
+    if not (beta > 1e-4 and r > 0.3):
+        return None, info
+    E = np.maximum(cv2.GaussianBlur(blk.astype(np.float32), (0, 0), sigma) - k0, 0)
+    top = float(np.percentile(E[region], 95))
+    need = np.where(region, np.maximum(top - E, 0), 0)
+    wsum = sum(W.values())
+    out = {}
+    for n in nums:
+        strong = L[n] > 0.05 * float(np.percentile(L[n], 99.5))
+        o = np.where(strong, need * W[n] / np.maximum(wsum, 1e-6) / np.maximum(L[n], 1e-6), 0)
+        out[n] = np.clip(o, 0, 0.03).astype(np.float32)
+    info.update(black_seen=True,
+                black_uneven_before=float(np.std(E[region]) / max(float(np.mean(E[region])), 1e-9)))
+    return out, info
 
 
 def dome_to_video(np, xs, ys, cam_size, dome: dict):
@@ -304,6 +366,9 @@ def solve(data: dict, ref: int | None, progress=None, dome: dict | None = None) 
         region = cv2.erode((inside & anylit).astype(np.uint8), k5) > 0
     else:
         region = cv2.erode(lit[ref].astype(np.uint8), k5) > 0
+    colour = match_colour(np, {n: projs[n].get("rgb") for n in nums})
+    for n, (_k, kept) in colour.items():
+        L[n] = L[n] * np.float32(kept)       # the colour correction costs this projector some light
     S = sum(L.values())
     sigma = 0.05 * small[0]
     T = _norm_blur(np, cv2, S, region, sigma)
@@ -321,6 +386,10 @@ def solve(data: dict, ref: int | None, progress=None, dome: dict | None = None) 
         "black_drift": data.get("black_drift"),
         "seconds": 0.0,
     }
+    offs, binfo = black_offsets(np, cv2, blk, L, W, region, 0.012 * small[0])
+    out["stats"].update(binfo)
+    if colour:
+        out["stats"]["colour_factors"] = {str(n): [round(float(v), 3) for v in k] for n, (k, _) in colour.items()}
     if progress:
         progress(0.75)
 
@@ -345,6 +414,12 @@ def solve(data: dict, ref: int | None, progress=None, dome: dict | None = None) 
             mok = cv2.remap(np.isfinite(mesh[..., 0]).astype(np.float32), NX, NY, cv2.INTER_LINEAR) > 0.5
             g = np.where(mok, g, 0)
         out["outputs"][n]["gain"] = g.astype(np.float32)
+        if offs is not None:
+            b = cv2.remap(offs[n], cx / ds - 0.5, cy / ds - 0.5, cv2.INTER_LINEAR,
+                          borderMode=cv2.BORDER_CONSTANT, borderValue=0)
+            out["outputs"][n]["black"] = np.where(g > 0, b, 0).astype(np.float32)
+        if n in colour:
+            out["outputs"][n]["colour"] = [float(v) for v in colour[n][0]]
     out["stats"]["seconds"] = round(time.perf_counter() - t0, 1)
     if progress:
         progress(1.0)
@@ -364,8 +439,13 @@ def save(result: dict, folder: Path, extra: dict) -> None:
         if o["mesh"] is not None:
             np.save(folder / f"{n}_mesh.npy", o["mesh"])
         np.save(folder / f"{n}_gain.npy", o["gain"])
+        if o.get("black") is not None:
+            np.save(folder / f"{n}_black.npy", o["black"])
+        else:
+            (folder / f"{n}_black.npy").unlink(missing_ok=True)
         info["outputs"][str(n)] = {"size": list(o["size"]), "coverage": round(o["coverage"], 4),
-                                   "mesh": o["mesh"] is not None}
+                                   "mesh": o["mesh"] is not None, "black": o.get("black") is not None,
+                                   "colour": o.get("colour")}
     (folder / "calibration.json").write_text(json.dumps(info, indent=2), encoding="utf-8")
 
 
@@ -379,7 +459,9 @@ def load(folder: Path) -> dict | None:
     for k, o in info["outputs"].items():
         n = int(k)
         mesh = np.load(folder / f"{n}_mesh.npy") if o.get("mesh") else None
-        outs[n] = {"size": tuple(o["size"]), "mesh": mesh, "gain": np.load(folder / f"{n}_gain.npy")}
+        outs[n] = {"size": tuple(o["size"]), "mesh": mesh, "gain": np.load(folder / f"{n}_gain.npy"),
+                   "black": np.load(folder / f"{n}_black.npy") if o.get("black") and (folder / f"{n}_black.npy").exists() else None,
+                   "colour": o.get("colour")}
     ref = info.get("ref")
     return {"ref": None if ref is None else int(ref), "mode": info.get("mode", "stack"),
             "outputs": outs, "info": info}
@@ -390,11 +472,13 @@ def load(folder: Path) -> dict | None:
 def save_capture(data: dict, folder: Path) -> None:
     import numpy as np
     folder.mkdir(parents=True, exist_ok=True)
-    arrs = {"black": data["black"].astype(np.uint8)}
+    # black twice: whole numbers for the picture file, 1/64 steps for the black-level calculation
+    arrs = {"black": data["black"].astype(np.uint8),
+            "black64": np.clip(np.round(data["black"] * 64), 0, 65535).astype(np.uint16)}
     meta = {"nums": [], "black_drift": data.get("black_drift"), "skipped": list(data.get("skipped") or []),
             "video": data.get("video"), "crop": data.get("crop"), "ports": data.get("ports") or {}}
     for n, P in data["projectors"].items():
-        meta["nums"].append({"num": n, "size": list(P["size"])})
+        meta["nums"].append({"num": n, "size": list(P["size"]), "rgb": P.get("rgb")})
         for k in ("px", "py"):   # 1/16 pixel steps in int16, -1 = not seen
             arrs[f"{n}_{k}"] = np.where(np.isfinite(P[k]), np.round(P[k] * 16), -1).astype(np.int16)
         arrs[f"{n}_white"] = np.clip(P["white"], 0, 255).astype(np.uint8)
@@ -427,7 +511,9 @@ def load_capture(folder: Path) -> dict | None:
         px, py = px / 16, py / 16
         px[bad] = np.nan
         py[bad] = np.nan
-        projs[n] = {"px": px, "py": py, "white": z[f"{n}_white"].astype(np.float32), "size": tuple(it["size"])}
-    return {"projectors": projs, "black": z["black"].astype(np.float32), "black_drift": meta.get("black_drift"),
+        projs[n] = {"px": px, "py": py, "white": z[f"{n}_white"].astype(np.float32), "size": tuple(it["size"]),
+                    "rgb": it.get("rgb")}
+    black = z["black64"].astype(np.float32) / 64 if "black64" in z.files else z["black"].astype(np.float32)
+    return {"projectors": projs, "black": black, "black_drift": meta.get("black_drift"),
             "skipped": list(meta.get("skipped") or []), "video": meta.get("video"), "crop": meta.get("crop"),
             "ports": meta.get("ports") or {}}

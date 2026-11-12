@@ -78,7 +78,10 @@
     "lens_view_deg": 107.0,
     "dome_diameter_m": 4.847,
     "dome_height_m": 0.778,
-    "usb_camera": false
+    "usb_camera": false,
+    "blend_gamma": 2.2,
+    "black_level": 1.0,
+    "color_match": 1.0
   },
   "mask": {
     "enabled": true,

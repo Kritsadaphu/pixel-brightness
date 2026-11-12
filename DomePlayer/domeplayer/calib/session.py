@@ -75,6 +75,7 @@ class CalibrationSession:
         self.code = {}         # num -> [code_x, code_y] uint32 gray-code bits
         self.bad = {}          # num -> bool mask of unreliable pixels
         self.skipped: dict = {}   # num -> why it was left out (the camera did not see it)
+        self._col = {}         # "black" / num -> small BGR picture (colour of every projector's white)
         self._lit = {}         # num -> camera pixels this projector lights
         self._weak = {}        # num -> {(axis, bit): unreadable-pixel mask} of the finest stripe sizes
         self.bit_ok = {}       # num -> {(axis, bit): part of the lit pixels where that size is readable}
@@ -130,6 +131,9 @@ class CalibrationSession:
             return
         import numpy as np
         g = np.mean([self._gray(f) for f in frames], axis=0).astype(np.float32)
+        if self.step.kind in ("black", "white") and frames[0].ndim == 3:
+            k = max(1, frames[0].shape[1] // 200)
+            self.note_colour(self.step, np.mean([f[::k, ::k].astype(np.float32) for f in frames], axis=0))
         try:
             self._process(self.step, g)
         except Exception as e:  # noqa: BLE001
@@ -200,6 +204,31 @@ class CalibrationSession:
         if f.ndim == 3:   # BGR -> luma
             f = f[..., 0] * 0.114 + f[..., 1] * 0.587 + f[..., 2] * 0.299
         return f
+
+    def note_colour(self, st: Step, bgr) -> None:
+        """Small colour picture (BGR, float) of a black or white step: only its colour is used."""
+        if getattr(bgr, "ndim", 0) != 3:
+            return
+        if st.kind == "black":
+            self._col.setdefault("black", bgr)
+        elif st.kind == "white":
+            self._col[st.num] = bgr
+
+    def _white_colour(self, n):
+        """[r, g, b] light of projector n's white as the camera sees it (linear), or None."""
+        import numpy as np
+        blk, wht = self._col.get("black"), self._col.get(n)
+        if blk is None or wht is None or blk.shape != wht.shape:
+            return None
+        lin = lambda a: (np.clip(a, 0, 255) / 255.0) ** 2.2  # noqa: E731
+        d = lin(wht) - lin(blk)
+        lum = d.sum(-1)
+        top = float(np.percentile(lum, 99))
+        m = (lum > 0.5 * top) & (wht.max(-1) < 245)          # well lit, no channel clipped
+        if top <= 0 or int(m.sum()) < 20:
+            return None
+        b, g, r = (float(v) for v in d[m].mean(0))
+        return [r, g, b] if min(r, g, b) > 0 else None
 
     def _process(self, st: Step, g) -> None:
         import numpy as np
@@ -280,7 +309,7 @@ class CalibrationSession:
             px[bad] = np.nan
             py[bad] = np.nan
             out["projectors"][n] = {"px": np.clip(px, 0, w - 1), "py": np.clip(py, 0, h - 1),
-                                    "white": self.white[n], "size": (w, h)}
+                                    "white": self.white[n], "size": (w, h), "rgb": self._white_colour(n)}
             log.info("monitor %s: decoded %.1f%% of camera pixels, finest stripes used %d x %d projector pixels",
                      n, 100 * np.mean(~bad), 1 << (self.skip + self.drop[n][0]), 1 << (self.skip + self.drop[n][1]))
             self._weak[n] = {}

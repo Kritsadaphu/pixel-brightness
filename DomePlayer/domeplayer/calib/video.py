@@ -295,6 +295,9 @@ def decode(path: Path, show: dict, max_px: int = 2160, progress=None, stream: in
     # ---- 3) every pattern: average the frames from the middle of its time -------------------
     k = 0
     acc, n_acc = None, 0
+    acc_c = None                    # colour (small) of the black and white patterns
+    cw = max(16, min(240, out_size[0]))
+    csize = (cw, max(16, round(cw * out_size[1] / out_size[0])))
     starts = [offset + float(t) for t in show["steps"]]
     # a pattern is on the projectors until the next one starts; after a hiccup of the player
     # that is sooner than planned, so every pattern gets its own window
@@ -307,8 +310,11 @@ def decode(path: Path, show: dict, max_px: int = 2160, progress=None, stream: in
     stops = [s + d - min(0.12, d * 0.2) for s, d in zip(starts, on)]
 
     def finish(step_index: int) -> None:
-        nonlocal acc, n_acc
+        nonlocal acc, n_acc, acc_c
         st = ses.steps[step_index]
+        if acc_c is not None and n_acc:
+            ses.note_colour(st, acc_c / n_acc)
+        acc_c = None
         if n_acc == 0:
             raise VideoError(f"the video has no picture for pattern {step_index + 1} of {len(starts)} - "
                              "it stopped too early or has gaps. Record again until the last flash")
@@ -336,6 +342,9 @@ def decode(path: Path, show: dict, max_px: int = 2160, progress=None, stream: in
                 g = gray(frame)
                 acc = g if acc is None else acc + g
                 n_acc += 1
+                if ses.steps[k].kind in ("black", "white"):
+                    c = cv2.resize(frame[y0:y1, x0:x1], csize, interpolation=cv2.INTER_AREA).astype(np.float32)
+                    acc_c = c if acc_c is None else acc_c + c
         if progress and count and index % 15 == 0:
             progress(min(0.99, 0.9 * index / count))
     if k < len(starts):

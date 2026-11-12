@@ -151,6 +151,9 @@ class SimCamera:
                 "vignette": rng.uniform(0.25, 0.45),
                 "hot": rng.uniform(-0.15, 0.15, size=2),
             }
+        tints = np.random.default_rng(seed + 77)
+        for t in self.truth.values():        # every lamp has its own tint (r g b)
+            t["tint"] = tints.uniform(0.86, 1.0, size=3).astype(np.float32)
         self._maps: dict = {}
         self.source = None      # set by the player: () -> (timestamp, {num: RGB uint8 image})
 
@@ -205,7 +208,7 @@ class SimCamera:
             du = xx / pw - 0.5 - t["hot"][0]
             dv = yy / ph - 0.5 - t["hot"][1]
             vig = (1.0 - t["vignette"] * (du * du + dv * dv) * 2.2) * t["bright"]
-            lin = lin * vig[..., None] + 0.004 * t["bright"]           # light + black level
+            lin = (lin * vig[..., None] + 0.004 * t["bright"]) * t["tint"]   # light + black level, lamp tint
             u, v = self._inverse_map(n)
             acc += cv2.remap(lin, u * pw - 0.5, v * ph - 0.5, cv2.INTER_LINEAR,
                              borderMode=cv2.BORDER_CONSTANT, borderValue=0)
