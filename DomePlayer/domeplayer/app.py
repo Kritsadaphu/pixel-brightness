@@ -896,6 +896,34 @@ class DomePlayer:
             self.say("camera lens type changed - recalculating from the last camera pictures ...", 5)
             self._start_solve(self._capture_for_today(data))
 
+    def set_solo(self, which: str) -> None:
+        """Control panel: show one projector only ("5"), or all ("0")."""
+        try:
+            n = int(which)
+        except ValueError:
+            return
+        if n == 0 or n not in self.nums:
+            self.solo = None
+            if self.edit and len(self.nums) > 1:
+                self.edit = False
+            self.say("showing all outputs")
+        else:
+            self.solo = n
+            self.say(f"showing only monitor {n}")
+
+    def set_brightness(self, step: str) -> None:
+        """Control panel: brightness of the projector shown alone (or of all), saved at once.
+        "+0.02" / "-0.02" = change, "1" = back to normal."""
+        targets = [self.solo] if self.solo in self.nums else list(self.nums)
+        try:
+            for n in targets:
+                v = self.gain.get(n, 1.0) + float(step) if step[:1] in "+-" else float(step)
+                self.gain[n] = round(min(2.0, max(0.0, v)), 3)
+                self.dirty.add(n)
+        except ValueError:
+            return
+        self.save_alignment()
+
     TUNE = {"gamma": ("blend_gamma", 1.0, 4.0, 2.2), "black": ("black_level", 0.0, 3.0, 1.0),
             "color": ("color_match", 0.0, 1.0, 1.0)}
 
@@ -1424,6 +1452,7 @@ class DomePlayer:
         d["show_done"] = getattr(self, "_show_done", None)
         d["lens_mm"] = self.cfg["calibration"]["lens_mm"]
         d["lens_type"] = self.cfg["calibration"]["lens_type"]
+        d["brightness"] = {str(n): self.gain.get(n, 1.0) for n in self.nums}
         cc = self.cfg["calibration"]
         tex = (self.cal or {}).get("tex") or {}
         d["tune"] = {"gamma": cc["blend_gamma"], "black": cc["black_level"], "color": cc["color_match"],
@@ -1439,6 +1468,10 @@ class DomePlayer:
         if parts[0] == "calibrate":
             self._k_armed = time.perf_counter() + 4.0      # the panel already asked "are you sure"
             self._handle_key(g.KEY_K, g.PRESS, 0)
+        elif parts[0] == "solo" and len(parts) >= 2:
+            self.set_solo(parts[1])
+        elif parts[0] == "bright" and len(parts) >= 2:
+            self.set_brightness(parts[1])
         elif parts[0] == "tune" and len(parts) >= 2:
             self.tune(parts[1], parts[2] if len(parts) > 2 else "")
         elif parts[0] == "cancel":

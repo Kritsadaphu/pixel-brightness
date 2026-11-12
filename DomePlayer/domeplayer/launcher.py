@@ -337,9 +337,9 @@ def main() -> int:
         head = tk.StringVar(value="กำลังเปิดตัวเล่น…")
         detail = tk.StringVar(value="")
         ttk.Label(win, textvariable=head, font=big).grid(row=0, column=0, sticky="w", padx=14, pady=(12, 2))
-        ttk.Label(win, textvariable=detail, wraplength=700, justify="left").grid(row=1, column=0, sticky="w", padx=14)
+        ttk.Label(win, textvariable=detail, wraplength=760, justify="left").grid(row=1, column=0, sticky="nw", padx=14)
         pic = ttk.Label(win)
-        pic.grid(row=2, column=0, padx=14, pady=4)
+        pic.grid(row=0, column=1, rowspan=2, sticky="ne", padx=14, pady=(12, 4))   # beside the text: the desk monitor is only 900 high
         state = {"shot": 0.0, "img": None, "t0": time.time(), "seen": False}
 
         def key(name):
@@ -347,7 +347,7 @@ def main() -> int:
 
         def box(title, row):
             f = ttk.LabelFrame(win, text=title, padding=6)
-            f.grid(row=row, column=0, sticky="we", padx=14, pady=4)
+            f.grid(row=row, column=0, columnspan=2, sticky="we", padx=14, pady=3)
             return f
 
         def buttons(frame, items):
@@ -406,7 +406,25 @@ def main() -> int:
                     "ห้ามถอดสายกล้องจนกว่าจะอ่านเสร็จ", parent=win):
                 remote.send("video " + str(f))
 
-        vf = box("calibrate ด้วย Insta360 Ace Pro 2 (อัดวิดีโอ แล้วให้โปรแกรมอ่านไฟล์จากกล้อง)", 4)
+        sf = box("ดูทีละเครื่อง และความสว่างของเครื่อง", 4)
+        solo_text = tk.StringVar(value="")
+        state.update(solo_frame=sf, solo_built=None, solo_text=solo_text)
+
+        def build_solo(outputs):
+            """One button per projector (their numbers are only known once the player runs)."""
+            for w in sf.winfo_children():
+                w.destroy()
+            items = [("ทุกเครื่อง", lambda: remote.send("solo 0"))]
+            items += [(f"เครื่อง {n}", (lambda n=n: remote.send(f"solo {n}"))) for n in outputs]
+            items += [("มืดลง", lambda: remote.send("bright -0.02")), ("สว่างขึ้น", lambda: remote.send("bright +0.02")),
+                      ("สว่างปกติ", lambda: remote.send("bright 1"))]
+            buttons(sf, items)
+            ttk.Label(sf, textvariable=solo_text).grid(row=1, column=0, columnspan=len(items), sticky="w", pady=(4, 0))
+            state["solo_built"] = list(outputs)
+
+        build_solo([])
+
+        vf = box("calibrate ด้วย Insta360 Ace Pro 2 (อัดวิดีโอ แล้วให้โปรแกรมอ่านไฟล์จากกล้อง)", 5)
         buttons(vf, [("1) ฉายลายให้กล้องอัด", show_patterns), ("2) อ่านไฟล์ล่าสุดจากกล้อง", from_camera),
                      ("เลือกไฟล์เอง…", pick_video), ("3) ดูภาพจากวิดีโอ (ปรับวงกลม)", lambda: remote.send("still")),
                      ("ยกเลิก", lambda: remote.send("cancel"))])
@@ -424,7 +442,7 @@ def main() -> int:
         except Exception:  # noqa: BLE001
             usb = False
         if usb:
-            buttons(box("calibrate ด้วยกล้อง USB (ภาพสด)", 7), [
+            buttons(box("calibrate ด้วยกล้อง USB (ภาพสด)", 8), [
                 ("เปิด / ปิดภาพกล้อง (C)", key("C")), ("กล้องตัวถัดไป", key("RIGHT_BRACKET")),
                 ("กล้องตัวก่อนหน้า", key("LEFT_BRACKET")), ("▶ เริ่ม calibrate", calibrate),
                 ("ยกเลิก calibrate", lambda: remote.send("cancel"))])
@@ -434,7 +452,7 @@ def main() -> int:
         def circle(name):
             return lambda: remote.send("key " + name + (" shift" if big_step.get() else ""))
 
-        cf = box("ขอบวงกลมโดม (เปิดภาพกล้อง หรือ ภาพจากวิดีโอ ก่อน แล้วปรับให้วงกลมทับขอบโดมพอดี)", 5)
+        cf = box("ขอบวงกลมโดม (เปิดภาพกล้อง หรือ ภาพจากวิดีโอ ก่อน แล้วปรับให้วงกลมทับขอบโดมพอดี)", 6)
         buttons(cf, [("◀", circle("LEFT")), ("▲", circle("UP")), ("▼", circle("DOWN")), ("▶", circle("RIGHT")),
                      ("ใหญ่ขึ้น", circle("EQUAL")), ("เล็กลง", circle("MINUS")),
                      ("หมุน FRONT ⟲", circle("COMMA")), ("หมุน FRONT ⟳", circle("PERIOD")),
@@ -444,7 +462,7 @@ def main() -> int:
         def tune(what, step=""):
             return lambda: remote.send(f"tune {what} {step}".strip())
 
-        tf = box("ไล่แสงและสี (ปรับสดขณะดูโดม: กด 'ตาราง / ขาว / วิดีโอ' ให้เป็นขาวก่อน)", 6)
+        tf = box("ไล่แสงและสี (ปรับสดขณะดูโดม: กด 'ตาราง / ขาว / วิดีโอ' ให้เป็นขาวก่อน)", 7)
         buttons(tf, [("รอยต่อมืดลง", tune("gamma", "-0.05")), ("รอยต่อสว่างขึ้น", tune("gamma", "+0.05")),
                      ("ชดเชยดำ −", tune("black", "-0.25")), ("ชดเชยดำ +", tune("black", "+0.25")),
                      ("จับคู่สี −", tune("color", "-0.25")), ("จับคู่สี +", tune("color", "+0.25")),
@@ -464,7 +482,7 @@ def main() -> int:
             root.deiconify()
 
         end = ttk.Frame(win)
-        end.grid(row=8, column=0, sticky="we", padx=14, pady=(6, 12))
+        end.grid(row=10, column=0, columnspan=2, sticky="we", padx=14, pady=(4, 10))
         ttk.Button(end, text="■ ปิดการฉาย", command=stop_show).pack(side="left", ipady=3, ipadx=10)
         ttk.Button(end, text="กลับหน้าตั้งค่า (การฉายไม่หยุด)", command=back).pack(side="right", ipady=3)
         win.protocol("WM_DELETE_WINDOW", back)
@@ -519,6 +537,14 @@ def main() -> int:
             if st.get("show_done") and not (st.get("result") or {}).get("at", 0) > st["show_done"]:
                 lines.append("ฉายลายจบแล้วเมื่อ " + time.strftime("%H:%M", time.localtime(st["show_done"]))
                              + ": หยุดอัดที่กล้อง เสียบกล้องเข้าเครื่องนี้ด้วย USB (เลือก U-Disk) แล้วกด '2) อ่านไฟล์ล่าสุดจากกล้อง'")
+            outs_ = st.get("outputs") or []
+            if state.get("solo_built") != list(outs_):
+                build_solo(outs_)
+            br = st.get("brightness") or {}
+            state["solo_text"].set(
+                ("กำลังดู: " + (f"เครื่อง {st['solo']} เครื่องเดียว" if st.get("solo") else "ทุกเครื่อง"))
+                + "     ความสว่าง: " + "  ".join(f"{n}={float(v):.2f}" for n, v in br.items())
+                + "     (ปุ่มมืดลง/สว่างขึ้น มีผลกับเครื่องที่กำลังดู)")
             tn = st.get("tune")
             if tn and state.get("tune_text") is not None:
                 state["tune_text"].set(
