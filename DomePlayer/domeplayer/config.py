@@ -85,6 +85,8 @@ DEFAULTS: dict = {
     },
     # Per-projector alignment, written by the player's edit mode (E key, then Ctrl+S).
     # "3": {"corners": [[x, y] top-left, top-right, bottom-right, bottom-left], "brightness": 1.0}
+    # "adjust": manual correction on top of the camera calibration: where the four corners of the
+    #           calibrated picture are put (same order; [[0,0],[1,0],[1,1],[0,1]] = unchanged)
     # Corners are fractions of that output's width/height (0..1, y downwards).
     "outputs": {},
     # Camera calibration (C = camera preview, K K = calibrate, U = calibration on/off).
@@ -246,13 +248,18 @@ def load_config(path: Path | None = None) -> dict:
         where = f'outputs."{num}"'
         _check(str(num).isdigit(), f"{where}: the name must be a monitor number in quotes, e.g. \"3\"")
         _check(isinstance(o, dict), f"{where} must be a {{ ... }} section")
-        unknown = set(o) - {"corners", "brightness"} - {k for k in o if k.startswith("_")}
+        unknown = set(o) - {"corners", "brightness", "adjust"} - {k for k in o if k.startswith("_")}
         _check(not unknown, f"{where}: unknown setting {sorted(unknown)}")
         if "corners" in o:
             c = o["corners"]
             _check(isinstance(c, list) and len(c) == 4 and all(
                 isinstance(pt, list) and len(pt) == 2 and all(isinstance(x, (int, float)) for x in pt)
                 for pt in c), f"{where}.corners must be 4 points [[x, y], [x, y], [x, y], [x, y]]")
+        if "adjust" in o:
+            c = o["adjust"]
+            _check(isinstance(c, list) and len(c) == 4 and all(
+                isinstance(pt, list) and len(pt) == 2 and all(isinstance(x, (int, float)) for x in pt)
+                for pt in c), f"{where}.adjust must be 4 points [[x, y], [x, y], [x, y], [x, y]]")
         if "brightness" in o:
             b = o["brightness"]
             _check(isinstance(b, (int, float)) and 0 <= b <= 2, f"{where}.brightness must be 0.0-2.0")
@@ -318,6 +325,9 @@ def save_outputs(config_path: str | Path, outputs: dict) -> None:
     raw = json.loads(path.read_text(encoding="utf-8-sig")) if path.exists() else {}
     merged = dict(raw.get("outputs") or {})
     for num, o in outputs.items():
-        merged.setdefault(str(num), {}).update(o)
+        entry = merged.setdefault(str(num), {})
+        entry.update(o)
+        for k in [k for k, v in entry.items() if v is None]:
+            del entry[k]
     raw["outputs"] = dict(sorted(merged.items(), key=lambda kv: int(kv[0])))
     write_config(path, raw)

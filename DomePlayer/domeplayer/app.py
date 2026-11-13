@@ -57,6 +57,7 @@ uniform float u_sweep;   // 0..1, advances every display refresh (sync check)
 uniform bool      u_use_mesh;    // output pixel -> reference output position (stacking)
 uniform sampler2D u_mesh;
 uniform vec2      u_mesh_size;
+uniform mat3      u_adj;         // manual correction: output position -> position in the calibrated picture
 uniform bool      u_use_gainmap; // per-pixel: r = brightness (signal multiplier, gamma 2.2), g = light to add (black level)
 uniform sampler2D u_gainmap;
 uniform float u_blend_gamma;     // gamma of the projectors
@@ -100,9 +101,12 @@ void main() {
     }
     vec2 base = o;
     if (u_use_mesh) {
-        vec2 tc = (o * (u_mesh_size - 1.0) + 0.5) / u_mesh_size;
+        vec3 aq = u_adj * vec3(o, 1.0);
+        vec2 oc = aq.xy / aq.z;
+        vec2 tc = (oc * (u_mesh_size - 1.0) + 0.5) / u_mesh_size;
         vec2 m = texture(u_mesh, tc).rg;
-        if (any(lessThan(m, vec2(-0.25))) || any(greaterThan(m, vec2(1.25)))) {
+        if (aq.z <= 0.0 || any(lessThan(oc, vec2(0.0))) || any(greaterThan(oc, vec2(1.0)))
+                || any(lessThan(m, vec2(-0.25))) || any(greaterThan(m, vec2(1.25)))) {
             f_color = vec4(0.0, 0.0, 0.0, 1.0);
             return;
         }
@@ -253,6 +257,7 @@ class DomePlayer:
         st = cfg["stack"]
         self.nums: list[int] = list(st["monitors"]) if st["enabled"] else [cfg["display"]["monitor"]]
         self.corners: dict[int, list] = {}
+        self.adjust: dict[int, list] = {}     # manual correction on top of the camera calibration
         self.gain: dict[int, float] = {}
         for k, o in cfg["outputs"].items():
             n = int(k)
@@ -262,6 +267,9 @@ class DomePlayer:
                 log.warning("outputs.%s.corners is not a usable shape, ignored", k)
             if "brightness" in o:
                 self.gain[n] = float(o["brightness"])
+            if "adjust" in o and warp.is_valid(o["adjust"]):
+                self.adjust[n] = [list(map(float, pt)) for pt in o["adjust"]]
+        self.man_corner = -1         # manual adjustment: -1 = whole picture, 0..3 = one corner
         self.solo: int | None = None
         self.test = 0          # 0 off, 1 grid, 2 flat white
         self.edit = False
@@ -459,9 +467,12 @@ class DomePlayer:
             return
         data = {}
         for n in nums:
-            o = {"brightness": round(self.gain.get(n, 1.0), 3)}
+            o = {"brightness": round(self.gain.get(n, 1.0), 3),
+                 "adjust": [[round(x, 5), round(y, 5)] for x, y in self.adjust.get(n, warp.UNIT)]}
             if n in self.corners:
                 o["corners"] = [[round(x, 5), round(y, 5)] for x, y in self.corners[n]]
+            else:
+                o["corners"] = None          # back to the standard place
             data[str(n)] = o
         try:
             save_outputs(self.cfg["_config_path"], data)
@@ -895,6 +906,62 @@ class DomePlayer:
         if data is not None:
             self.say("camera lens type changed - recalculating from the last camera pictures ...", 5)
             self._start_solve(self._capture_for_today(data))
+
+    def _adj_uniform(self, num) -> tuple:
+        pts = self.adjust.get(num)
+        if pts:
+            try:
+                return warp.output_to_image_uniform(pts)
+            except ValueError:
+                pass
+        return (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+
+    def manual_adjust(self, args: list) -> None:
+        """Control panel, manual adjustment of the projector shown alone:
+        "corner N" (-1 = whole picture, 0..3), "move DX DY" (output pixels), "scale ±1" (steps),
+        "turn ±1" (steps), "reset". With a camera calibration the correction goes on top of it;
+        without one the picture's own four corners are moved. Saved at once."""
+        op = args[0]
+        if op == "corner" and len(args) > 1:
+            try:
+                self.man_corner = max(-1, min(3, int(args[1])))
+            except ValueError:
+                pass
+            return
+        num = self.solo
+        r = self._rects.get(num) if num is not None else None
+        if num not in self.nums or r is None:
+            self.say("manual adjustment: first choose ONE projector (show it alone)", 5)
+            return
+        on_cal = self._calibrated(num) and "mesh" in self.cal["tex"][num]
+        try:
+            vals = [float(v) for v in args[1:3]]
+        except ValueError:
+            return
+        if op == "reset":
+            if on_cal:
+                self.adjust.pop(num, None)
+            else:
+                self.corners.pop(num, None)
+        else:
+            cur = self.adjust.get(num, warp.UNIT) if on_cal else self.corners_for(num, r[2], r[3])
+            if op == "move" and len(vals) == 2:
+                new = warp.manual(cur, "move", vals[0] / r[2], vals[1] / r[3], self.man_corner)
+            elif op == "scale" and vals:
+                new = warp.manual(cur, "scale", 1.0 + 0.002 * vals[0])
+            elif op == "turn" and vals:
+                new = warp.manual(cur, "turn", 0.1 * vals[0], aspect=r[2] / r[3])
+            else:
+                return
+            if not warp.is_valid(new) or any(abs(v) > 3 for p in new for v in p):
+                self.say("manual adjustment: that shape is not possible", 3)
+                return
+            if on_cal:
+                self.adjust[num] = new
+            else:
+                self.corners[num] = new
+        self.dirty.add(num)
+        self.save_alignment()
 
     def set_solo(self, which: str) -> None:
         """Control panel: show one projector only ("5"), or all ("0")."""
@@ -1453,6 +1520,8 @@ class DomePlayer:
         d["lens_mm"] = self.cfg["calibration"]["lens_mm"]
         d["lens_type"] = self.cfg["calibration"]["lens_type"]
         d["brightness"] = {str(n): self.gain.get(n, 1.0) for n in self.nums}
+        d["manual"] = {"corner": self.man_corner,
+                       "adjusted": sorted(n for n in self.nums if n in self.adjust or n in self.corners)}
         cc = self.cfg["calibration"]
         tex = (self.cal or {}).get("tex") or {}
         d["tune"] = {"gamma": cc["blend_gamma"], "black": cc["black_level"], "color": cc["color_match"],
@@ -1468,6 +1537,8 @@ class DomePlayer:
         if parts[0] == "calibrate":
             self._k_armed = time.perf_counter() + 4.0      # the panel already asked "are you sure"
             self._handle_key(g.KEY_K, g.PRESS, 0)
+        elif parts[0] == "adj" and len(parts) >= 2:
+            self.manual_adjust(parts[1:])
         elif parts[0] == "solo" and len(parts) >= 2:
             self.set_solo(parts[1])
         elif parts[0] == "bright" and len(parts) >= 2:
@@ -1769,6 +1840,7 @@ class DomePlayer:
             "u_use_mesh": use_mesh,
             "u_mesh": 1,
             "u_mesh_size": cal["mesh_size"] if use_mesh else (2.0, 2.0),
+            "u_adj": self._adj_uniform(num),
             "u_use_gainmap": cal is not None,
             "u_gainmap": 2,
             "u_blend_gamma": float(self.cfg["calibration"]["blend_gamma"]),

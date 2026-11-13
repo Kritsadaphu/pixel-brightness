@@ -435,14 +435,14 @@ def main() -> int:
         lens_box.grid(row=0, column=6, padx=4)
         lens_box.bind("<<ComboboxSelected>>",
                       lambda _e: remote.send("lenstype " + LENS_KINDS[lens_box.current()]))
-        state["lens_box"] = lens_box
+        state["lens_box"], state["lens_var"] = lens_box, lens
 
         try:
             usb = bool(load_config()["calibration"].get("usb_camera"))
         except Exception:  # noqa: BLE001
             usb = False
         if usb:
-            buttons(box("calibrate ด้วยกล้อง USB (ภาพสด)", 8), [
+            buttons(box("calibrate ด้วยกล้อง USB (ภาพสด)", 9), [
                 ("เปิด / ปิดภาพกล้อง (C)", key("C")), ("กล้องตัวถัดไป", key("RIGHT_BRACKET")),
                 ("กล้องตัวก่อนหน้า", key("LEFT_BRACKET")), ("▶ เริ่ม calibrate", calibrate),
                 ("ยกเลิก calibrate", lambda: remote.send("cancel"))])
@@ -461,6 +461,29 @@ def main() -> int:
 
         def tune(what, step=""):
             return lambda: remote.send(f"tune {what} {step}".strip())
+
+        man_big = tk.BooleanVar(value=False)
+
+        def adj(op, a=0, b=None):
+            def go():
+                k = 10 if man_big.get() else 1
+                remote.send(f"adj {op} {a * k}" + ("" if b is None else f" {b * k}"))
+            return go
+
+        mf = box("ปรับมือทีละเครื่อง เมื่อ calibrate ไม่ตรง (เลือกเครื่องในกรอบ 'ดูทีละเครื่อง' ก่อน แล้วกด 'ตาราง')", 8)
+        buttons(mf, [("◀", adj("move", -1, 0)), ("▲", adj("move", 0, -1)), ("▼", adj("move", 0, 1)), ("▶", adj("move", 1, 0)),
+                     ("ใหญ่ขึ้น", adj("scale", 1)), ("เล็กลง", adj("scale", -1)),
+                     ("หมุน ⟲", adj("turn", -1)), ("หมุน ⟳", adj("turn", 1)),
+                     ("ล้างค่าเครื่องนี้", lambda: remote.send("adj reset"))])
+        man_part = tk.StringVar(value="")
+        ttk.Label(mf, text=" ขยับ:").grid(row=0, column=9)
+        man_box = ttk.Combobox(mf, textvariable=man_part, state="readonly", width=12,
+                               values=["ทั้งภาพ", "มุมซ้ายบน", "มุมขวาบน", "มุมขวาล่าง", "มุมซ้ายล่าง"])
+        man_box.current(0)
+        man_box.grid(row=0, column=10, padx=4)
+        man_box.bind("<<ComboboxSelected>>", lambda _e: remote.send(f"adj corner {man_box.current() - 1}"))
+        ttk.Checkbutton(mf, text="ทีละ 10", variable=man_big).grid(row=0, column=11, padx=4)
+        state["man_box"], state["man_part"] = man_box, man_part      # keep the variable alive
 
         tf = box("ไล่แสงและสี (ปรับสดขณะดูโดม: กด 'ตาราง / ขาว / วิดีโอ' ให้เป็นขาวก่อน)", 7)
         buttons(tf, [("รอยต่อมืดลง", tune("gamma", "-0.05")), ("รอยต่อสว่างขึ้น", tune("gamma", "+0.05")),
@@ -545,6 +568,12 @@ def main() -> int:
                 ("กำลังดู: " + (f"เครื่อง {st['solo']} เครื่องเดียว" if st.get("solo") else "ทุกเครื่อง"))
                 + "     ความสว่าง: " + "  ".join(f"{n}={float(v):.2f}" for n, v in br.items())
                 + "     (ปุ่มมืดลง/สว่างขึ้น มีผลกับเครื่องที่กำลังดู)")
+            mn = st.get("manual")
+            if mn and state.get("man_box") is not None and state["man_box"].current() != mn["corner"] + 1:
+                state["man_box"].current(mn["corner"] + 1)
+            if mn and mn.get("adjusted"):
+                state["solo_text"].set(state["solo_text"].get() + "     ปรับมือไว้: เครื่อง "
+                                       + ", ".join(map(str, mn["adjusted"])))
             tn = st.get("tune")
             if tn and state.get("tune_text") is not None:
                 state["tune_text"].set(

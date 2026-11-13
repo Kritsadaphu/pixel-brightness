@@ -64,6 +64,34 @@ def output_to_image_uniform(corners: list[Corner]) -> tuple[float, ...]:
     return tuple(m[r][col] for col in range(3) for r in range(3))
 
 
+UNIT = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]     # top-left, top-right, bottom-right, bottom-left
+
+
+def manual(points: list[Corner], op: str, a: float = 0.0, b: float = 0.0, corner: int = -1,
+           aspect: float = 1.0) -> list[Corner]:
+    """Manual adjustment of four corner points (fractions of the output, y down).
+    op "move": by (a, b), all corners or only 'corner'.  "scale": by factor a about the middle.
+    "turn": by a degrees about the middle (aspect = output width / height, so it stays a turn)."""
+    import math
+    pts = [[float(x), float(y)] for x, y in points]
+    if op == "move":
+        for i in (range(4) if corner < 0 else [corner % 4]):
+            pts[i][0] += a
+            pts[i][1] += b
+        return pts
+    cx, cy = sum(p[0] for p in pts) / 4, sum(p[1] for p in pts) / 4
+    if op == "scale":
+        return [[cx + (x - cx) * a, cy + (y - cy) * a] for x, y in pts]
+    if op == "turn":
+        c, s = math.cos(math.radians(a)), math.sin(math.radians(a))
+        out = []
+        for x, y in pts:
+            dx, dy = (x - cx) * aspect, y - cy
+            out.append([cx + (c * dx - s * dy) / aspect, cy + s * dx + c * dy])
+        return out
+    return pts
+
+
 def is_valid(corners: list[Corner]) -> bool:
     """Convex and not folded over (all turns the same way)."""
     try:
