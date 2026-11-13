@@ -82,6 +82,10 @@ DEFAULTS: dict = {
         # true = use every display except the Windows main display (the operator's screen),
         # whatever numbers Windows gives them today. "monitors" is then ignored.
         "auto": False,
+        # displays that are connected but not part of the show (e.g. the customer's 6th projector).
+        # "unused_ports" remembers their card sockets, so the choice survives Windows renumbering.
+        "unused": [],
+        "unused_ports": {},
     },
     # Per-projector alignment, written by the player's edit mode (E key, then Ctrl+S).
     # "3": {"corners": [[x, y] top-left, top-right, bottom-right, bottom-left], "brightness": 1.0}
@@ -126,7 +130,8 @@ DEFAULTS: dict = {
         # cap in metres. 0 = unknown (the picture is then spread evenly over the view angle)
         "dome_diameter_m": 4.847,
         "dome_height_m": 0.778,
-        "usb_camera": False,     # true = also offer calibration with a live USB camera
+        "usb_camera": True,      # the live camera (Ace Pro 2 as a webcam) is the main route; false = the
+                                 # readiness check does not test a USB camera
         # fine tuning of the result, changed live from the control panel:
         "blend_gamma": 2.2,      # the projectors' gamma: lower = overlaps darker, higher = overlaps brighter
         "black_level": 1.0,      # black level compensation: 0 = off, 1 = as measured, up to 3
@@ -244,6 +249,10 @@ def load_config(path: Path | None = None) -> dict:
     _check(isinstance(mons, list) and mons and all(isinstance(m, int) and m >= 1 for m in mons)
            and len(set(mons)) == len(mons),
            "stack.monitors must be a list of different monitor numbers, e.g. [3, 6, 2, 4, 5, 1]")
+    un = st.get("unused", [])
+    _check(isinstance(un, list) and all(isinstance(m, int) and m >= 1 for m in un),
+           "stack.unused must be a list of monitor numbers, e.g. [7], or []")
+    _check(isinstance(st.get("unused_ports", {}), dict), "stack.unused_ports must be a { ... } section")
     for num, o in cfg["outputs"].items():
         where = f'outputs."{num}"'
         _check(str(num).isdigit(), f"{where}: the name must be a monitor number in quotes, e.g. \"3\"")

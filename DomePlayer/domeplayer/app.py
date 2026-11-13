@@ -1019,6 +1019,22 @@ class DomePlayer:
         self.say(f"blend gamma {cc['blend_gamma']:.2f}   black level {cc['black_level']:.2f}   "
                  f"colour match {cc['color_match']:.2f}", 3)
 
+    def set_lens_view(self, step: str) -> None:
+        """Control panel: the angle the camera sees across the short side of its picture.
+        "+1" / "-1" = change, "107" = set. Saved, then recalculated from the last pictures."""
+        cc = self.cfg["calibration"]
+        try:
+            v = cc["lens_view_deg"] + float(step) if step[:1] in "+-" else float(step)
+        except ValueError:
+            return
+        cc["lens_view_deg"] = round(min(170.0, max(40.0, v)), 1)
+        try:
+            save_setting(self.cfg["_config_path"], "calibration", "lens_view_deg", cc["lens_view_deg"])
+        except (OSError, ValueError) as e:
+            self.say(f"could not save config.json: {e}", 6)
+            return
+        self.set_lens(cc["lens_mm"])
+
     def set_lens_type(self, kind: str) -> None:
         """"action" (Ace Pro 2) / "equidistant" / "none". Recalculates from the last pictures."""
         if kind not in ("action", "equidistant", "none"):
@@ -1519,6 +1535,7 @@ class DomePlayer:
         d["show_done"] = getattr(self, "_show_done", None)
         d["lens_mm"] = self.cfg["calibration"]["lens_mm"]
         d["lens_type"] = self.cfg["calibration"]["lens_type"]
+        d["lens_view"] = self.cfg["calibration"]["lens_view_deg"]
         d["brightness"] = {str(n): self.gain.get(n, 1.0) for n in self.nums}
         d["manual"] = {"corner": self.man_corner,
                        "adjusted": sorted(n for n in self.nums if n in self.adjust or n in self.corners)}
@@ -1561,6 +1578,8 @@ class DomePlayer:
                 self.show_still()
         elif parts[0] == "lens" and len(parts) >= 2:
             self.set_lens(float(parts[1]))
+        elif parts[0] == "lensview" and len(parts) >= 2:
+            self.set_lens_view(parts[1])
         elif parts[0] == "lenstype" and len(parts) >= 2:
             self.set_lens_type(parts[1])
         elif parts[0] == "key" and len(parts) >= 2:

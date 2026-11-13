@@ -218,8 +218,24 @@ def main() -> int:
     srow.grid(row=4, column=0, columnspan=2, sticky="w", padx=14, pady=(8, 0))
     stack_entry = ttk.Entry(srow, textvariable=stack_list, width=22)
     auto = tk.BooleanVar(value=bool(cfg["stack"].get("auto")))
-    arow = ttk.Frame(frm)
-    arow.grid(row=5, column=0, columnspan=2, sticky="w", padx=14)
+    two = ttk.Frame(frm)
+    two.grid(row=5, column=0, columnspan=2, sticky="w", padx=14)
+    arow = ttk.Frame(two)
+    arow.pack(anchor="w")
+    urow = ttk.Frame(two)
+    urow.pack(anchor="w", padx=(22, 0), pady=(4, 0))
+    try:
+        from .monitors import unused_today
+        skip_now = unused_today(cfg)
+    except Exception:  # noqa: BLE001
+        skip_now = set(cfg["stack"].get("unused") or [])
+    unused = {}
+    spare = [n for n, label in mons if "จอหลัก" not in label]
+    if spare:
+        ttk.Label(urow, text="ไม่ใช้เครื่องนี้ (ติ๊กเครื่องที่ไม่ได้ฉายโดม กด 'โชว์เลขจอ' เพื่อดูเลข):").pack(side="left")
+        for n in spare:
+            unused[n] = tk.BooleanVar(value=n in skip_now)
+            ttk.Checkbutton(urow, text=f"จอ {n}", variable=unused[n]).pack(side="left", padx=(8, 0))
     auto_box = ttk.Checkbutton(arow, variable=auto,
                                text="เลือกจอให้เอง: ใช้ทุกจอยกเว้นจอหลักของ Windows (แนะนำ เลขจอเปลี่ยนก็ไม่เป็นไร)")
 
@@ -271,6 +287,15 @@ def main() -> int:
             return False
         r.setdefault("stack", {})["enabled"] = bool(stack.get())
         r["stack"]["auto"] = bool(auto.get())
+        if unused:
+            try:
+                from .monitors import ports
+                socket = ports()
+            except Exception:  # noqa: BLE001
+                socket = {}
+            off = sorted(n for n, v in unused.items() if v.get())
+            r["stack"]["unused"] = off
+            r["stack"]["unused_ports"] = {str(n): socket[n] for n in off if n in socket}
         if mon_list:
             r["stack"]["monitors"] = mon_list
         try:
@@ -346,8 +371,8 @@ def main() -> int:
             return lambda: remote.send("key " + name)
 
         def box(title, row):
-            f = ttk.LabelFrame(win, text=title, padding=6)
-            f.grid(row=row, column=0, columnspan=2, sticky="we", padx=14, pady=3)
+            f = ttk.LabelFrame(win, text=title, padding=(6, 2, 6, 4))
+            f.grid(row=row, column=0, columnspan=2, sticky="we", padx=14, pady=1)
             return f
 
         def buttons(frame, items):
@@ -364,7 +389,7 @@ def main() -> int:
                     "DomePlayer", "เริ่ม calibrate ด้วยกล้อง?\n\n"
                     "- ปิดไฟห้องแล้ว\n- กล้องอยู่กลางห้อง หันขึ้นโดม เห็นขอบโดมครบทั้งวง\n"
                     "- ใช้เวลา 2-3 นาที ห้ามขยับกล้อง ห้ามเดินผ่านหน้ากล้อง\n"
-                    "- ช่อง 'เลนส์กล้อง' ด้านล่างต้องตรงกับกล้อง (R50 = เลนส์ปกติ)\n\n"
+                    "- ดูภาพกล้องในแผงควบคุมก่อน: ต้องเห็นขอบโดมครบทั้งวง และวงกลมทับขอบโดม\n\n"
                     "(ค่าเดิมจะถูกเก็บสำรองไว้ ย้อนกลับได้)", parent=win):
                 remote.send("calibrate")
 
@@ -424,28 +449,47 @@ def main() -> int:
 
         build_solo([])
 
-        vf = box("calibrate ด้วย Insta360 Ace Pro 2 (อัดวิดีโอ แล้วให้โปรแกรมอ่านไฟล์จากกล้อง)", 5)
-        buttons(vf, [("1) ฉายลายให้กล้องอัด", show_patterns), ("2) อ่านไฟล์ล่าสุดจากกล้อง", from_camera),
-                     ("เลือกไฟล์เอง…", pick_video), ("3) ดูภาพจากวิดีโอ (ปรับวงกลม)", lambda: remote.send("still")),
-                     ("ยกเลิก", lambda: remote.send("cancel"))])
+        def video_window():
+            """The other route: record the patterns with the camera, then read the file."""
+            old = state.get("video_win")
+            if old is not None and old.winfo_exists():
+                old.lift()
+                return
+            vw = tk.Toplevel(win)
+            vw.title("calibrate จากไฟล์วิดีโอที่อัดไว้ (ทางเลือก)")
+            vw.resizable(False, False)
+            state["video_win"] = vw
+            ttk.Label(vw, justify="left", text=(
+                "ใช้เมื่อภาพกล้องสดเห็นโดมไม่ครบ หรือกล้องต่อเป็น Webcam ไม่ได้\n"
+                "Ace Pro 2: FreeFrame Video, 4K 4:3, มุมกว้างสุด, ปิดกันสั่น, ค่าแสง Manual")).grid(
+                row=0, column=0, sticky="w", padx=12, pady=(10, 4))
+            vf = ttk.Frame(vw, padding=8)
+            vf.grid(row=1, column=0, sticky="w")
+            buttons(vf, [("1) ฉายลายให้กล้องอัด", show_patterns), ("2) อ่านไฟล์ล่าสุดจากกล้อง", from_camera),
+                         ("เลือกไฟล์เอง…", pick_video), ("3) ดูภาพจากวิดีโอ (ปรับวงกลม)", lambda: remote.send("still")),
+                         ("ยกเลิก", lambda: remote.send("cancel"))])
+
+        lf = box("calibrate ด้วยกล้องสด (วิธีหลัก): เสียบ Ace Pro 2 ด้วย USB แล้วเลือก Webcam ที่จอกล้อง", 5)
+        top = ttk.Frame(lf)
+        top.grid(row=0, column=0, sticky="w")
+        buttons(top, [("1) เปิด / ปิดภาพกล้อง", key("C")), ("กล้องตัวถัดไป", key("RIGHT_BRACKET")),
+                      ("กล้องตัวก่อนหน้า", key("LEFT_BRACKET")), ("2) ▶ เริ่ม calibrate", calibrate),
+                      ("ยกเลิก", lambda: remote.send("cancel")),
+                      ("ทางเลือก: ใช้ไฟล์วิดีโอที่อัดไว้…", video_window)])
+        low = ttk.Frame(lf)
+        low.grid(row=1, column=0, sticky="w", pady=(4, 0))
         lens = tk.StringVar(value="")
-        ttk.Label(vf, text=" เลนส์:").grid(row=0, column=5)
-        lens_box = ttk.Combobox(vf, textvariable=lens, state="readonly", width=20,
+        view_text = tk.StringVar(value="")
+        ttk.Label(low, text="เลนส์:").pack(side="left")
+        lens_box = ttk.Combobox(low, textvariable=lens, state="readonly", width=22,
                                 values=["Ace Pro 2 (กล้องแอ็กชัน)", "ฟิชอายธรรมดา", "ไม่แก้เลนส์ (กล้อง 360)"])
-        lens_box.grid(row=0, column=6, padx=4)
+        lens_box.pack(side="left", padx=4)
         lens_box.bind("<<ComboboxSelected>>",
                       lambda _e: remote.send("lenstype " + LENS_KINDS[lens_box.current()]))
-        state["lens_box"], state["lens_var"] = lens_box, lens
-
-        try:
-            usb = bool(load_config()["calibration"].get("usb_camera"))
-        except Exception:  # noqa: BLE001
-            usb = False
-        if usb:
-            buttons(box("calibrate ด้วยกล้อง USB (ภาพสด)", 9), [
-                ("เปิด / ปิดภาพกล้อง (C)", key("C")), ("กล้องตัวถัดไป", key("RIGHT_BRACKET")),
-                ("กล้องตัวก่อนหน้า", key("LEFT_BRACKET")), ("▶ เริ่ม calibrate", calibrate),
-                ("ยกเลิก calibrate", lambda: remote.send("cancel"))])
+        ttk.Button(low, text="มุมกล้อง −1°", command=lambda: remote.send("lensview -1")).pack(side="left", padx=(12, 3))
+        ttk.Button(low, text="มุมกล้อง +1°", command=lambda: remote.send("lensview +1")).pack(side="left", padx=3)
+        ttk.Label(low, textvariable=view_text).pack(side="left", padx=8)
+        state.update(lens_box=lens_box, lens_var=lens, view_text=view_text)
 
         big_step = tk.BooleanVar(value=False)
 
@@ -581,6 +625,9 @@ def main() -> int:
                     + ("" if tn.get("has_black") else " (ผล calibrate นี้ไม่มีข้อมูลระดับดำ)")
                     + f"     จับคู่สี {tn['color']:.2f}"
                     + ("" if tn.get("has_color") else " (ผล calibrate นี้ไม่มีข้อมูลสี)"))
+            if st.get("lens_view") and state.get("view_text") is not None:
+                state["view_text"].set(f"มุมที่กล้องเห็น (ด้านสั้นของภาพ) {float(st['lens_view']):g}°"
+                                       "   ลด/เพิ่ม เมื่อวงแหวนในภาพทดสอบยืดหรือหดจากกลางถึงขอบ")
             box_ = state.get("lens_box")
             if box_ is not None and st.get("lens_type") in LENS_KINDS:      # show what the player uses
                 want = LENS_KINDS.index(st["lens_type"])
@@ -648,7 +695,7 @@ def main() -> int:
         tick()
 
     ttk.Button(frm, text="▶  เล่น", command=play).grid(row=7, column=0, columnspan=2, sticky="we", padx=14, pady=(10, 4), ipady=8)
-    ttk.Label(frm, text="ระหว่างเล่น:  F1 สถิติ  |  T ตารางทดสอบ  |  1-9 ดูทีละจอ, 0 ทุกจอ  |  E ปรับมุม  |  Esc ปิด",
+    ttk.Label(frm, text="กด เล่น แล้วสั่งงานทุกอย่างด้วยปุ่มใน 'แผงควบคุม' ที่จะเปิดขึ้นบนจอนี้ (calibrate, ไล่แสง, ปรับมือ)",
               foreground="#555").grid(row=8, column=0, columnspan=2, **pad)
 
     # ---- tools: readiness check, calibration rollback, problem report -------------------

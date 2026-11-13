@@ -132,7 +132,35 @@ def ports() -> dict[int, str]:
     return out
 
 
+def unused_today(cfg: dict) -> set[int]:
+    """The displays ticked as "not used", as numbered today. They were remembered with their card
+    socket; when Windows renumbers the displays the tick follows the socket, not the number."""
+    st = cfg["stack"]
+    saved = st.get("unused_ports") or {}
+    now = ports() if saved else {}
+    by_port = {v: k for k, v in now.items()}
+    out: set[int] = set()
+    for n in st.get("unused") or []:
+        port = str(saved.get(str(n), "")).lower()
+        if port and by_port:
+            if port in by_port:
+                out.add(by_port[port])      # (socket empty today: nothing to leave out)
+        else:
+            out.add(int(n))
+    return out
+
+
 def wanted(cfg: dict, mons: list[MonitorInfo]) -> list[int]:
+    nums = _wanted(cfg, mons)
+    if cfg["stack"]["enabled"]:
+        skip = unused_today(cfg)
+        left = [n for n in nums if n not in skip]
+        if left:
+            return left
+    return nums
+
+
+def _wanted(cfg: dict, mons: list[MonitorInfo]) -> list[int]:
     """The monitor numbers the show uses: one monitor, the list from the settings, or
     (stack.auto) every display except the Windows main display, left to right."""
     st = cfg["stack"]
