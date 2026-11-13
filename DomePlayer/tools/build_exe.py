@@ -112,7 +112,11 @@ def main() -> int:
     print("self-test OK")
     log_file.unlink(missing_ok=True)
 
-    zip_base = DIST / "DomePlayer-offline"
+    version = re.search(r'__version__ = "([^"]+)"', (APP_DIR / "domeplayer" / "__init__.py").read_text(encoding="utf-8")).group(1)
+    for old in OUT.glob("เวอร์ชัน-*.txt"):
+        old.unlink()
+    (OUT / f"เวอร์ชัน-{version}.txt").write_text(f"DomePlayer {version}\n", encoding="utf-8")
+    zip_base = DIST / f"DomePlayer-{version}"   # the version is in the name, so copies are never mixed up
     shutil.make_archive(str(zip_base), "zip", root_dir=DIST, base_dir="DomePlayer")
     print(f"\nOK: {OUT / 'DomePlayer.exe'}\n    {zip_base}.zip")
     return 0
